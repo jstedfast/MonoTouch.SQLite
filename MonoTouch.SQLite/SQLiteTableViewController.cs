@@ -59,6 +59,17 @@ namespace MonoTouch.SQLite
 			get; private set;
 		}
 		
+		public void ReloadData ()
+		{
+			SearchModel.ReloadData ();
+			Model.ReloadData ();
+			
+			if (SearchDisplayController != null)
+				SearchDisplayController.SearchResultsTableView.ReloadData ();
+			
+			TableView.ReloadData ();
+		}
+		
 		protected override int NumberOfSections (UITableView tableView)
 		{
 			if (tableView == SearchDisplayController.SearchResultsTableView)
