@@ -99,7 +99,7 @@ namespace MonoTouch.SQLite
 			throw new NotImplementedException ();
 		}
 		
-		T GetItem (UITableView tableView, NSIndexPath indexPath)
+		protected T GetItem (UITableView tableView, NSIndexPath indexPath)
 		{
 			if (tableView == SearchDisplayController.SearchResultsTableView)
 				return SearchModel.GetItem (indexPath.Section, indexPath.Row);
