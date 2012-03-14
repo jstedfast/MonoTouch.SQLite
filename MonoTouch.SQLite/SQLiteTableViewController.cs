@@ -87,7 +87,7 @@ namespace MonoTouch.SQLite
 			TableView.SectionFooterHeight = 0;
 		}
 		
-		protected SQLiteTableModel ModelForTableView (UITableView tableView)
+		protected SQLiteTableModel<T> ModelForTableView (UITableView tableView)
 		{
 			if (tableView == SearchDisplayController.SearchResultsTableView)
 				return SearchModel;
@@ -97,12 +97,12 @@ namespace MonoTouch.SQLite
 		
 		protected NSIndexPath PathForVisibleItem (UITableView tableView, T item)
 		{
-			SQLiteTableModel model = ModelForTableView (tableView);
+			SQLiteTableModel<T> model = ModelForTableView (tableView);
 			
 			foreach (var path in tableView.IndexPathsForVisibleRows) {
 				var visibleItem = model.GetItem (path.Section, path.Row);
 				
-				if (visibleItem == item)
+				if (visibleItem.Equals (item))
 					return path;
 			}
 			
