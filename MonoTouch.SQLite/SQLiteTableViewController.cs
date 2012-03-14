@@ -114,7 +114,7 @@ namespace MonoTouch.SQLite
 			var path = PathForVisibleItem (tableView, item);
 			
 			if (path != null)
-				tableView.ReloadRows (new NSIndexPath[] { path }, UITableViewRowAnimation.Automatic);
+				tableView.ReloadRows (new NSIndexPath[] { path }, UITableViewRowAnimation.None);
 		}
 		
 		protected override int NumberOfSections (UITableView tableView)
