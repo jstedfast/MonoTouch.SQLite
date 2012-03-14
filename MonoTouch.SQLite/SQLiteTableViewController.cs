@@ -70,6 +70,23 @@ namespace MonoTouch.SQLite
 			TableView.ReloadData ();
 		}
 		
+		public override void ViewDidLoad ()
+		{
+			base.ViewDidLoad ();
+			
+			SearchDisplayController.SearchResultsTableView.AllowsMultipleSelectionDuringEditing = false;
+			SearchDisplayController.SearchResultsTableView.AllowsSelectionDuringEditing = false;
+			SearchDisplayController.SearchResultsTableView.AllowsMultipleSelection = false;
+			SearchDisplayController.SearchResultsTableView.AllowsSelection = false;
+			SearchDisplayController.SearchResultsTableView.SectionFooterHeight = 0;
+			
+			TableView.AllowsMultipleSelectionDuringEditing = false;
+			TableView.AllowsSelectionDuringEditing = false;
+			TableView.AllowsMultipleSelection = false;
+			TableView.AllowsSelection = false;
+			TableView.SectionFooterHeight = 0;
+		}
+		
 		protected override int NumberOfSections (UITableView tableView)
 		{
 			if (tableView == SearchDisplayController.SearchResultsTableView)
