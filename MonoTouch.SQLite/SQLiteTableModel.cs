@@ -699,6 +699,57 @@ namespace MonoTouch.SQLite {
 		}
 		
 		/// <summary>
+		/// Gets the index of the specified item.
+		/// </summary>
+		/// <returns>
+		/// The index of the specified item, or -1 if not found.
+		/// </returns>
+		/// <param name='item'>
+		/// The item to find the index of.
+		/// </param>
+		/// <param name='cmp'>
+		/// The item comparer.
+		/// </param>
+		public int IndexOf (T item, IComparer<T> cmp)
+		{
+			SQLiteCommand command;
+			List<T> results;
+			int hi = Count;
+			int lo = 0;
+			int index;
+			T other;
+			int v;
+			
+			if (hi == 0)
+				return -1;
+			
+			do {
+				index = lo + (hi - lo) / 2;
+				
+				if (index >= offset && index - offset < cache.Count) {
+					other = cache[index - offset];
+				} else {
+					command = CreateQueryCommand (1, index);
+					results = command.ExecuteQuery<T> ();
+					if (results.Count == 0)
+						break;
+					
+					other = results[0];
+				}
+				
+				if ((v = cmp.Compare (item, other)) == 0)
+					return index;
+				
+				if (v > 0)
+					lo = index + 1;
+				else
+					hi = index;
+			} while (lo < hi);
+			
+			return -1;
+		}
+		
+		/// <summary>
 		/// Reloads the model. This should be called whenever the SQLite table changes
 		/// (e.g. whenever an item is added or removed).
 		/// </summary>
