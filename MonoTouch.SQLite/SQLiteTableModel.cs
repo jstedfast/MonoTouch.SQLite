@@ -85,6 +85,7 @@ namespace MonoTouch.SQLite {
 		int sections;
 		int[] rows;
 		int offset;
+		int count;
 		
 		void Initialize (Type type)
 		{
@@ -147,6 +148,25 @@ namespace MonoTouch.SQLite {
 		/// </value>
 		public SQLiteConnection Connection {
 			get; private set;
+		}
+		
+		/// <summary>
+		/// Gets the total number of items in the table.
+		/// </summary>
+		/// <value>
+		/// The total number of items in the table.
+		/// </value>
+		public int Count {
+			get {
+				if (count == -1) {
+					count = 0;
+					
+					for (int i = 0; i < SectionCount; i++)
+						count += GetRowCount (i);
+				}
+				
+				return count;
+			}
 		}
 		
 		/// <summary>
@@ -584,21 +604,20 @@ namespace MonoTouch.SQLite {
 		}
 		
 		/// <summary>
-		/// Gets the item specified by the given section and row.
+		/// Gets the item specified by the given index.
 		/// </summary>
 		/// <returns>
-		/// The requested item.
+		/// The requested item or null if it doesn't exist.
 		/// </returns>
-		/// <param name='section'>
-		/// The section containing the requested row.
+		/// <param name='index'>
+		/// The index of the item.
 		/// </param>
-		/// <param name='row'>
-		/// The row of the requested item.
-		/// </param>
-		public T GetItem (int section, int row)
+		public T GetItem (int index)
 		{
-			int index = SectionAndRowToIndex (section, row);
 			int limit = PageSize;
+			
+			if (index < 0)
+				return default (T);
 			
 			//Connection.Trace = true;
 			
@@ -661,6 +680,25 @@ namespace MonoTouch.SQLite {
 		}
 		
 		/// <summary>
+		/// Gets the item specified by the given section and row.
+		/// </summary>
+		/// <returns>
+		/// The requested item or null if it doesn't exist.
+		/// </returns>
+		/// <param name='section'>
+		/// The section containing the requested row.
+		/// </param>
+		/// <param name='row'>
+		/// The row of the requested item.
+		/// </param>
+		public T GetItem (int section, int row)
+		{
+			int index = SectionAndRowToIndex (section, row);
+			
+			return GetItem (index);
+		}
+		
+		/// <summary>
 		/// Reloads the model. This should be called whenever the SQLite table changes
 		/// (e.g. whenever an item is added or removed).
 		/// </summary>
@@ -671,6 +709,7 @@ namespace MonoTouch.SQLite {
 			sections = -1;
 			rows = null;
 			offset = 0;
+			count = -1;
 		}
 		
 		#region IDisposable implementation
