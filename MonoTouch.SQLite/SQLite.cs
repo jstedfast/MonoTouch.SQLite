@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2009-2011 Krueger Systems, Inc.
+// Copyright (c) 2009-2012 Krueger Systems, Inc.
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,9 +25,13 @@
 #endif
 
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using System.Reflection;
+#if NETFX_CORE
+using System.Reflection.RuntimeExtensions;
+#endif
 using System.Linq;
 using System.Linq.Expressions;
 
@@ -56,16 +60,12 @@ namespace MonoTouch.SQLite
 			return new SQLiteException (r, message);
 		}
 	}
-	
+
 	[Flags]
 	public enum SQLiteOpenFlags {
-		ReadOnly = 1,
-		ReadWrite = 2,
-		Create = 4,
-		NoMutex = 0x8000,
-		FullMutex = 0x10000,
-		SharedCache = 0x20000,
-		PrivateCache = 0x40000,
+		ReadOnly = 1, ReadWrite = 2, Create = 4,
+		NoMutex = 0x8000, FullMutex = 0x10000,
+		SharedCache = 0x20000, PrivateCache = 0x40000,
 		ProtectionComplete = 0x00100000,
 		ProtectionCompleteUnlessOpen = 0x00200000,
 		ProtectionCompleteUntilFirstUserAuthentication = 0x00300000,
@@ -116,7 +116,7 @@ namespace MonoTouch.SQLite
 			
 			BusyTimeout = TimeSpan.FromSeconds (0.1);
 		}
-		
+
 		/// <summary>
 		/// Constructs a new SQLiteConnection and opens a SQLite database specified by databasePath.
 		/// </summary>
@@ -202,13 +202,38 @@ namespace MonoTouch.SQLite
 			return map;
 		}
 		
-		struct IndexInfo {
+		/// <summary>
+		/// Retrieves the mapping that is automatically generated for the given type.
+		/// </summary>
+		/// <returns>
+		/// The mapping represents the schema of the columns of the database and contains 
+		/// methods to set and get properties of objects.
+		/// </returns>
+		public TableMapping GetMapping<T> ()
+		{
+			return GetMapping (typeof (T));
+		}
+
+		private struct IndexInfo
+		{
 			public string IndexName;
 			public int Order;
 			public string ColumnName;
 			public string TableName;
 		}
 
+		/// <summary>
+		/// Executes a "drop table" on the database.  This is non-recoverable.
+		/// </summary>
+		public int DropTable<T>()
+		{
+			var map = GetMapping (typeof (T));
+
+			var query = string.Format("drop table \"{0}\"", map.TableName);
+
+			return Execute (query);
+		}
+		
 		/// <summary>
 		/// Executes a "create table if not exists" on the database. It also
 		/// creates any specified indexes on the columns of the table. It uses
@@ -243,27 +268,27 @@ namespace MonoTouch.SQLite
 				// Table already exists, migrate it
 				MigrateTable (map);
 			}
-			
+
 			var allIndexedColumns =
 				map.Columns.SelectMany(
 					c => c.Indices,
 					(c, i) => new IndexInfo
-				{
-					IndexName = i.Name ?? map.TableName + "_" + c.Name,
-					Order = i.Order,
-					ColumnName = c.Name,
-					TableName = map.TableName
-				});
+						{
+							IndexName = i.Name ?? map.TableName + "_" + c.Name,
+							Order = i.Order,
+							ColumnName = c.Name,
+							TableName = map.TableName
+						});
 			var aggregatedIndexes =
 				allIndexedColumns.Aggregate(
 					new Dictionary<string, List<IndexInfo>>(),
 					(dict, info) =>
-				{
-					if (!dict.ContainsKey(info.IndexName))
-						dict.Add(info.IndexName, new List<IndexInfo>());
-					dict[info.IndexName].Add(info);
-					return dict;
-				});
+						{
+							if (!dict.ContainsKey(info.IndexName))
+								dict.Add(info.IndexName, new List<IndexInfo>());
+							dict[info.IndexName].Add(info);
+							return dict;
+						});
 			
 			foreach (var indexName in aggregatedIndexes.Keys) {
 				var indexGroup = aggregatedIndexes[indexName];
@@ -378,7 +403,7 @@ namespace MonoTouch.SQLite
 			if (TimeExecution) {
 				_sw.Stop ();
 				_elapsedMilliseconds += _sw.ElapsedMilliseconds;
-				Console.WriteLine ("Finished in {0} ms ({1:0.0} s total)", _sw.ElapsedMilliseconds, _elapsedMilliseconds / 1000.0);
+				Debug.WriteLine (string.Format ("Finished in {0} ms ({1:0.0} s total)", _sw.ElapsedMilliseconds, _elapsedMilliseconds / 1000.0));
 			}
 			
 			return r;
@@ -737,20 +762,20 @@ namespace MonoTouch.SQLite
 		public void Close ()
 		{
 			if (_open && Handle != NullHandle) {
-                try {
-                    foreach (var sqlInsertCommand in _mappings.Values) {
-                        sqlInsertCommand.Dispose();
-                    }
-                    var r = SQLite3.Close(Handle);
-                    if (r != SQLite3.Result.OK) {
-                        string msg = SQLite3.GetErrmsg(Handle);
-                        throw SQLiteException.New(r, msg);
-                    }
-                }
-                finally {
-                    Handle = NullHandle;
-                    _open = false;
-                }
+				try {
+					foreach (var sqlInsertCommand in _mappings.Values) {
+						sqlInsertCommand.Dispose();
+					}
+					var r = SQLite3.Close(Handle);
+					if (r != SQLite3.Result.OK) {
+						string msg = SQLite3.GetErrmsg(Handle);
+						throw SQLiteException.New(r, msg);
+					}
+				}
+				finally {
+					Handle = NullHandle;
+					_open = false;
+				}
 			}
 		}
 	}
@@ -768,11 +793,11 @@ namespace MonoTouch.SQLite
 		public string Name { get; set; }
 		public int Order { get; set; }
 		
-		public IndexedAttribute ()
+		public IndexedAttribute()
 		{
 		}
 		
-		public IndexedAttribute (string name, int order)
+		public IndexedAttribute(string name, int order)
 		{
 			Name = name;
 			Order = order;
@@ -820,10 +845,20 @@ namespace MonoTouch.SQLite
 		{
 			MappedType = type;
 			TableName = MappedType.Name;
+#if !NETFX_CORE
 			var props = MappedType.GetProperties (BindingFlags.Public | BindingFlags.Instance | BindingFlags.SetProperty);
+#else
+			var props = from p in MappedType.GetRuntimeProperties()
+						where ((p.GetMethod != null && p.GetMethod.IsPublic) || (p.SetMethod != null && p.SetMethod.IsPublic) || (p.GetMethod != null && p.GetMethod.IsStatic) || (p.SetMethod != null && p.SetMethod.IsStatic))
+						select p;
+#endif
 			var cols = new List<Column> ();
 			foreach (var p in props) {
+#if !NETFX_CORE
 				var ignore = p.GetCustomAttributes (typeof(IgnoreAttribute), true).Length > 0;
+#else
+				var ignore = p.GetCustomAttributes (typeof(IgnoreAttribute), true).Count() > 0;
+#endif
 				if (p.CanWrite && !ignore) {
 					cols.Add (new PropColumn (p));
 				}
@@ -869,42 +904,41 @@ namespace MonoTouch.SQLite
 		PreparedSqlLiteInsertCommand _insertCommand;
 		string _insertCommandExtra = null;
 
-        public PreparedSqlLiteInsertCommand GetInsertCommand(SQLiteConnection conn, string extra)
-        {
-
-            if (_insertCommand == null) {
-                _insertCommand = CreateInsertCommand(conn, extra);
-                _insertCommandExtra = extra;
-            }
-            else if (_insertCommandExtra != extra) {
-                _insertCommand.Dispose();
-                _insertCommand = CreateInsertCommand(conn, extra);
-                _insertCommandExtra = extra;
-            }
-            return _insertCommand;
-        }
-
-        private PreparedSqlLiteInsertCommand CreateInsertCommand(SQLiteConnection conn, string extra)
-        {
-            var cols = InsertColumns;
-            var insertSql = string.Format ("insert {3} into \"{0}\"({1}) values ({2})", TableName, 
-                string.Join (",", (from c in cols
-                                   select "\"" + c.Name + "\"").ToArray ()), 
-                                   string.Join (",", (from c in cols
-                                                      select "?").ToArray ()), extra);
-                                                                                                                                                                   
-            var insertCommand = new PreparedSqlLiteInsertCommand(conn);
-            insertCommand.CommandText = insertSql;
-            return insertCommand;
-        }
-
-        protected internal void Dispose()
-        {
-            if (_insertCommand != null) {
-                _insertCommand.Dispose();
-                _insertCommand = null;
-            }
-        }
+		public PreparedSqlLiteInsertCommand GetInsertCommand(SQLiteConnection conn, string extra)
+		{
+			if (_insertCommand == null) {
+				_insertCommand = CreateInsertCommand(conn, extra);
+				_insertCommandExtra = extra;
+			}
+			else if (_insertCommandExtra != extra) {
+				_insertCommand.Dispose();
+				_insertCommand = CreateInsertCommand(conn, extra);
+				_insertCommandExtra = extra;
+			}
+			return _insertCommand;
+		}
+		
+		private PreparedSqlLiteInsertCommand CreateInsertCommand(SQLiteConnection conn, string extra)
+		{
+			var cols = InsertColumns;
+			var insertSql = string.Format ("insert {3} into \"{0}\"({1}) values ({2})", TableName, 
+						       string.Join (",", (from c in cols
+									  select "\"" + c.Name + "\"").ToArray ()), 
+						       string.Join (",", (from c in cols
+									  select "?").ToArray ()), extra);
+			
+			var insertCommand = new PreparedSqlLiteInsertCommand(conn);
+			insertCommand.CommandText = insertSql;
+			return insertCommand;
+		}
+		
+		protected internal void Dispose()
+		{
+			if (_insertCommand != null) {
+				_insertCommand.Dispose();
+				_insertCommand = null;
+			}
+		}
 
 		public abstract class Column
 		{
@@ -917,7 +951,7 @@ namespace MonoTouch.SQLite
 			public bool IsAutoInc { get; protected set; }
 
 			public bool IsPK { get; protected set; }
-			
+
 			public IEnumerable<IndexedAttribute> Indices { get; set; }
 
 			public bool IsNullable { get; protected set; }
@@ -942,7 +976,7 @@ namespace MonoTouch.SQLite
 				Collation = Orm.Collation (prop);
 				IsAutoInc = Orm.IsAutoInc (prop);
 				IsPK = Orm.IsPK (prop);
-				Indices = Orm.GetIndices (prop);
+				Indices = Orm.GetIndices(prop);
 				IsNullable = !IsPK;
 				MaxStringLength = Orm.MaxStringLength (prop);
 			}
@@ -997,7 +1031,11 @@ namespace MonoTouch.SQLite
 				return "varchar(" + len + ")";
 			} else if (clrType == typeof(DateTime)) {
 				return "datetime";
+#if !NETFX_CORE
 			} else if (clrType.IsEnum) {
+#else
+			} else if (clrType.GetTypeInfo().IsEnum) {
+#endif
 				return "integer";
 			} else if (clrType == typeof(byte[])) {
 				return "blob";
@@ -1009,14 +1047,23 @@ namespace MonoTouch.SQLite
 		public static bool IsPK (MemberInfo p)
 		{
 			var attrs = p.GetCustomAttributes (typeof(PrimaryKeyAttribute), true);
+#if !NETFX_CORE
 			return attrs.Length > 0;
+#else
+			return attrs.Count() > 0;
+#endif
 		}
 
 		public static string Collation (MemberInfo p)
 		{
 			var attrs = p.GetCustomAttributes (typeof(CollationAttribute), true);
+#if !NETFX_CORE
 			if (attrs.Length > 0) {
 				return ((CollationAttribute)attrs [0]).Value;
+#else
+			if (attrs.Count() > 0) {
+                return ((CollationAttribute)attrs.First()).Value;
+#endif
 			} else {
 				return string.Empty;
 			}
@@ -1025,20 +1072,29 @@ namespace MonoTouch.SQLite
 		public static bool IsAutoInc (MemberInfo p)
 		{
 			var attrs = p.GetCustomAttributes (typeof(AutoIncrementAttribute), true);
+#if !NETFX_CORE
 			return attrs.Length > 0;
-		}
-		
-		public static IEnumerable<IndexedAttribute> GetIndices (MemberInfo p)
-		{
-			var attrs = p.GetCustomAttributes (typeof(IndexedAttribute), true);
-			return attrs.Cast<IndexedAttribute>();
+#else
+			return attrs.Count() > 0;
+#endif
 		}
 
-		public static int MaxStringLength (PropertyInfo p)
+		public static IEnumerable<IndexedAttribute> GetIndices(MemberInfo p)
+		{
+			var attrs = p.GetCustomAttributes(typeof(IndexedAttribute), true);
+			return attrs.Cast<IndexedAttribute>();
+		}
+		
+		public static int MaxStringLength(PropertyInfo p)
 		{
 			var attrs = p.GetCustomAttributes (typeof(MaxLengthAttribute), true);
+#if !NETFX_CORE
 			if (attrs.Length > 0) {
 				return ((MaxLengthAttribute)attrs [0]).Value;
+#else
+			if (attrs.Count() > 0) {
+				return ((MaxLengthAttribute)attrs.First()).Value;
+#endif
 			} else {
 				return DefaultMaxStringLength;
 			}
@@ -1062,7 +1118,7 @@ namespace MonoTouch.SQLite
 		public int ExecuteNonQuery ()
 		{
 			if (_conn.Trace) {
-				Console.WriteLine ("Executing: " + this);
+				Debug.WriteLine ("Executing: " + this);
 			}
 			
 			var r = SQLite3.Result.OK;
@@ -1098,7 +1154,7 @@ namespace MonoTouch.SQLite
 		public IEnumerable<T> ExecuteDeferredQuery<T> (TableMapping map)
 		{
 			if (_conn.Trace) {
-				Console.WriteLine ("Executing Query: " + this);
+				Debug.WriteLine ("Executing Query: " + this);
 			}
 
 			var stmt = Prepare ();
@@ -1132,7 +1188,7 @@ namespace MonoTouch.SQLite
 		public T ExecuteScalar<T> ()
 		{
 			if (_conn.Trace) {
-				Console.WriteLine ("Executing Query: " + this);
+				Debug.WriteLine ("Executing Query: " + this);
 			}
 			
 			T val = default(T);
@@ -1219,7 +1275,11 @@ namespace MonoTouch.SQLite
 					SQLite3.BindDouble (stmt, index, Convert.ToDouble (value));
 				} else if (value is DateTime) {
 					SQLite3.BindText (stmt, index, ((DateTime)value).ToString ("yyyy-MM-dd HH:mm:ss"), -1, NegativePointer);
-				} else if (value.GetType ().IsEnum) {
+#if !NETFX_CORE
+				} else if (value.GetType().IsEnum) {
+#else
+				} else if (value.GetType().GetTypeInfo().IsEnum) {
+#endif
 					SQLite3.BindInt (stmt, index, Convert.ToInt32 (value));
 				} else if (value is byte[]) {
 					SQLite3.BindBlob (stmt, index, (byte[])value, ((byte[])value).Length, NegativePointer);
@@ -1256,7 +1316,11 @@ namespace MonoTouch.SQLite
 				} else if (clrType == typeof(DateTime)) {
 					var text = SQLite3.ColumnString (stmt, index);
 					return DateTime.Parse (text);
+#if !NETFX_CORE
 				} else if (clrType.IsEnum) {
+#else
+				} else if (clrType.GetTypeInfo().IsEnum) {
+#endif
 					return SQLite3.ColumnInt (stmt, index);
 				} else if (clrType == typeof(Int64)) {
 					return SQLite3.ColumnInt64 (stmt, index);
@@ -1307,7 +1371,7 @@ namespace MonoTouch.SQLite
 		public int ExecuteNonQuery (object[] source)
 		{
 			if (Connection.Trace) {
-				Console.WriteLine ("Executing: " + CommandText);
+				Debug.WriteLine ("Executing: " + CommandText);
 			}
 
 			var r = SQLite3.Result.OK;
@@ -1600,12 +1664,24 @@ namespace MonoTouch.SQLite
 					//
 					object val = null;
 					
+#if !NETFX_CORE
 					if (mem.Member.MemberType == MemberTypes.Property) {
+#else
+					if (mem.Member is PropertyInfo) {
+#endif
 						var m = (PropertyInfo)mem.Member;
-						val = m.GetValue (obj, null);						
+						val = m.GetValue (obj, null);
+#if !NETFX_CORE
 					} else if (mem.Member.MemberType == MemberTypes.Field) {
+#else
+					} else if (mem.Member is FieldInfo) {
+#endif
+#if SILVERLIGHT
+						val = Expression.Lambda (expr).Compile ().DynamicInvoke ();
+#else
 						var m = (FieldInfo)mem.Member;
-						val = m.GetValue (obj);						
+						val = m.GetValue (obj);
+#endif
 					} else {
 						throw new NotSupportedException ("MemberExpr: " + mem.Member.MemberType.ToString ());
 					}
@@ -1732,25 +1808,25 @@ namespace MonoTouch.SQLite
 		}
 
 #if !USE_CSHARP_SQLITE
-		[DllImport("sqlite3", EntryPoint = "sqlite3_open")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_open", CallingConvention=CallingConvention.Cdecl)]
 		public static extern Result Open (string filename, out IntPtr db);
-		
-		[DllImport("sqlite3", EntryPoint = "sqlite3_open_v2")]
+
+		[DllImport("sqlite3", EntryPoint = "sqlite3_open_v2", CallingConvention=CallingConvention.Cdecl)]
 		public static extern Result Open (string filename, out IntPtr db, int flags, IntPtr zvfs);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_close")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_close", CallingConvention=CallingConvention.Cdecl)]
 		public static extern Result Close (IntPtr db);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_config")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_config", CallingConvention=CallingConvention.Cdecl)]
 		public static extern Result Config (ConfigOption option);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_busy_timeout")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_busy_timeout", CallingConvention=CallingConvention.Cdecl)]
 		public static extern Result BusyTimeout (IntPtr db, int milliseconds);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_changes")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_changes", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int Changes (IntPtr db);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_prepare_v2")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_prepare_v2", CallingConvention=CallingConvention.Cdecl)]
 		public static extern Result Prepare2 (IntPtr db, string sql, int numBytes, out IntPtr stmt, IntPtr pzTail);
 
 		public static IntPtr Prepare2 (IntPtr db, string query)
@@ -1763,19 +1839,19 @@ namespace MonoTouch.SQLite
 			return stmt;
 		}
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_step")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_step", CallingConvention=CallingConvention.Cdecl)]
 		public static extern Result Step (IntPtr stmt);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_reset")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_reset", CallingConvention=CallingConvention.Cdecl)]
 		public static extern Result Reset (IntPtr stmt);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_finalize")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_finalize", CallingConvention=CallingConvention.Cdecl)]
 		public static extern Result Finalize (IntPtr stmt);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_last_insert_rowid")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_last_insert_rowid", CallingConvention=CallingConvention.Cdecl)]
 		public static extern long LastInsertRowid (IntPtr db);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_errmsg16")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_errmsg16", CallingConvention=CallingConvention.Cdecl)]
 		public static extern IntPtr Errmsg (IntPtr db);
 
 		public static string GetErrmsg (IntPtr db)
@@ -1783,62 +1859,62 @@ namespace MonoTouch.SQLite
 			return Marshal.PtrToStringUni (Errmsg (db));
 		}
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_parameter_index")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_parameter_index", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int BindParameterIndex (IntPtr stmt, string name);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_null")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_null", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int BindNull (IntPtr stmt, int index);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_int")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_int", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int BindInt (IntPtr stmt, int index, int val);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_int64")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_int64", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int BindInt64 (IntPtr stmt, int index, long val);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_double")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_double", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int BindDouble (IntPtr stmt, int index, double val);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_text")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_text", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int BindText (IntPtr stmt, int index, string val, int n, IntPtr free);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_blob")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_blob", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int BindBlob (IntPtr stmt, int index, byte[] val, int n, IntPtr free);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_column_count")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_count", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int ColumnCount (IntPtr stmt);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_column_name")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_name", CallingConvention=CallingConvention.Cdecl)]
 		public static extern IntPtr ColumnName (IntPtr stmt, int index);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_column_name16")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_name16", CallingConvention=CallingConvention.Cdecl)]
 		private static extern IntPtr ColumnName16Internal (IntPtr stmt, int index);
 		public static string ColumnName16(IntPtr stmt, int index)
 		{
 			return Marshal.PtrToStringUni(ColumnName16Internal(stmt, index));
 		}
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_column_type")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_type", CallingConvention=CallingConvention.Cdecl)]
 		public static extern ColType ColumnType (IntPtr stmt, int index);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_column_int")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_int", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int ColumnInt (IntPtr stmt, int index);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_column_int64")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_int64", CallingConvention=CallingConvention.Cdecl)]
 		public static extern long ColumnInt64 (IntPtr stmt, int index);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_column_double")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_double", CallingConvention=CallingConvention.Cdecl)]
 		public static extern double ColumnDouble (IntPtr stmt, int index);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_column_text")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_text", CallingConvention=CallingConvention.Cdecl)]
 		public static extern IntPtr ColumnText (IntPtr stmt, int index);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_column_text16")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_text16", CallingConvention=CallingConvention.Cdecl)]
 		public static extern IntPtr ColumnText16 (IntPtr stmt, int index);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_column_blob")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_blob", CallingConvention=CallingConvention.Cdecl)]
 		public static extern IntPtr ColumnBlob (IntPtr stmt, int index);
 
-		[DllImport("sqlite3", EntryPoint = "sqlite3_column_bytes")]
+		[DllImport("sqlite3", EntryPoint = "sqlite3_column_bytes", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int ColumnBytes (IntPtr stmt, int index);
 
 		public static string ColumnString (IntPtr stmt, int index)
