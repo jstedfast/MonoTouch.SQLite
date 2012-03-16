@@ -81,7 +81,9 @@ namespace MonoTouch.SQLite {
 		List<T> cache = new List<T> ();
 		string searchText = null;
 		TableMapping titleMap;
+		object[] query_args;
 		string[] titles;
+		string query;
 		int sections;
 		int[] rows;
 		int offset;
@@ -212,6 +214,9 @@ namespace MonoTouch.SQLite {
 					return;
 				
 				searchExpr = value;
+				query_args = null;
+				query = null;
+				
 				ReloadData ();
 			}
 		}
@@ -572,35 +577,39 @@ namespace MonoTouch.SQLite {
 		}
 		
 		/// <summary>
-		/// Creates the command to get row data from the table using the current <see cref="SearchExpression"/>.
+		/// Creates the query string and arguments to get row data from
+		/// the table using the current <see cref="SearchExpression"/>.
 		/// </summary>
 		/// <returns>
-		/// The query command.
+		/// The query string.
 		/// </returns>
-		/// <param name='limit'>
-		/// The maximum number of items to fetch from the SQLite table.
+		/// <param name='args'>
+		/// The argument vector for the query.
 		/// </param>
-		/// <param name='offset'>
-		/// The offset of the first row in the table to fetch data for.
-		/// </param>
-		protected virtual SQLiteCommand CreateQueryCommand (int limit, int offset)
+		protected virtual string CreateQuery (out object[] args)
 		{
 			string query = "select * from \"" + TableName + "\"";
-			List<object> args = new List<object> ();
 			
-			if (SearchExpression != null) {
-				object[] searchArgs;
+			if (SearchExpression != null)
+				query += " " + SearchExpression.ToString (out args);
+			else
+				args = new object[0];
+			
+			return query;
+		}
+		
+		SQLiteCommand CreateQueryCommand (int limit, int offset)
+		{
+			if (query == null) {
+				query = CreateQuery (out query_args);
 				
-				query += " " + SearchExpression.ToString (out searchArgs);
-				args.AddRange (searchArgs);
+				if (OrderBy != null)
+					query += " order by " + OrderBy.ToString ();
 			}
 			
-			if (OrderBy != null)
-				query += " order by " + OrderBy.ToString ();
+			string command = query + " limit " + limit + " offset " + offset;
 			
-			query += " limit " + limit + " offset " + offset;
-			
-			return Connection.CreateCommand (query, args.ToArray ());
+			return Connection.CreateCommand (command, query_args);
 		}
 		
 		/// <summary>
