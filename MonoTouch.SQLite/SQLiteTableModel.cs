@@ -538,15 +538,12 @@ namespace MonoTouch.SQLite {
 				if (curIndex + count > index)
 					break;
 				
-				section++;
-				
-				if (curIndex + count == index)
-					break;
-				
 				curIndex += count;
+				section++;
+				count = 0;
 			}
 			
-			if (i == SectionCount)
+			if (curIndex + count < index)
 				return false;
 			
 			row = index - curIndex;
