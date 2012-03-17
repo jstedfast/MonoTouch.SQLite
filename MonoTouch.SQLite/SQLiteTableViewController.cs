@@ -33,22 +33,22 @@ namespace MonoTouch.SQLite
 {
 	public abstract class SQLiteTableViewController<T> : AllInOneTableViewController where T : new ()
 	{
-		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize, SQLiteOrderBy orderBy, string sectionExpression) : base (UITableViewStyle.Plain)
+		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize, SQLiteOrderBy orderBy, string sectionExpression)
+			: base (UITableViewStyle.Plain)
 		{
 			SearchModel = new SQLiteTableModel<T> (sqlitedb, pageSize, orderBy, sectionExpression);
 			Model = new SQLiteTableModel<T> (sqlitedb, pageSize, orderBy, sectionExpression);
+			AutoHideSearch = true;
 		}
 		
-		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize, SQLiteOrderBy orderBy) : base (UITableViewStyle.Plain)
+		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize, SQLiteOrderBy orderBy)
+			: this (sqlitedb, pageSize, orderBy, null)
 		{
-			SearchModel = new SQLiteTableModel<T> (sqlitedb, pageSize, orderBy, null);
-			Model = new SQLiteTableModel<T> (sqlitedb, pageSize, orderBy, null);
 		}
 		
-		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize) : base (UITableViewStyle.Plain)
+		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize)
+			: this (sqlitedb, pageSize, null)
 		{
-			SearchModel = new SQLiteTableModel<T> (sqlitedb, pageSize, null, null);
-			Model = new SQLiteTableModel<T> (sqlitedb, pageSize, null, null);
 		}
 		
 		public SQLiteTableModel<T> SearchModel {
@@ -124,7 +124,24 @@ namespace MonoTouch.SQLite
 		
 		protected override string TitleForHeader (UITableView tableView, int section)
 		{
-			return ModelForTableView (tableView).SectionTitles[section];
+			string[] titles = ModelForTableView (tableView).SectionTitles;
+			
+			return titles != null ? titles[section] : null;
+		}
+		
+		protected override float GetHeightForHeader (UITableView tableView, int section)
+		{
+			string[] titles = ModelForTableView (tableView).SectionTitles;
+			
+			if (titles == null)
+				return 0;
+			
+			return base.GetHeightForHeader (tableView, section);
+		}
+		
+		protected override float GetHeightForFooter (UITableView tableView, int section)
+		{
+			return 0;
 		}
 		
 		protected override int RowsInSection (UITableView tableView, int section)
