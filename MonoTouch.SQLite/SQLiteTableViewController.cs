@@ -33,6 +33,21 @@ namespace MonoTouch.SQLite
 {
 	public abstract class SQLiteTableViewController<T> : AllInOneTableViewController where T : new ()
 	{
+		/// <summary>
+		/// Initializes a new instance of the <see cref="MonoTouch.SQLite.SQLiteTableViewController`1"/> class.
+		/// </summary>
+		/// <param name='sqlitedb'>
+		/// The SQLite database connection.
+		/// </param>
+		/// <param name='pageSize'>
+		/// The number of items to page-in and page-out as the user scrolls.
+		/// </param>
+		/// <param name='orderBy'>
+		/// The field to sort by and the order in which to display the data or null to display the data in the default order.
+		/// </param>
+		/// <param name='sectionExpression'>
+		/// The sub-expression used to get distinct sections and their titles or null to display the data as a flat list.
+		/// </param>
 		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize, SQLiteOrderBy orderBy, string sectionExpression)
 			: base (UITableViewStyle.Plain)
 		{
@@ -51,14 +66,29 @@ namespace MonoTouch.SQLite
 		{
 		}
 		
+		/// <summary>
+		/// Gets the model used when displaying data filtered by the search criteria.
+		/// </summary>
+		/// <value>
+		/// The search data model.
+		/// </value>
 		public SQLiteTableModel<T> SearchModel {
 			get; private set;
 		}
 		
+		/// <summary>
+		/// Gets the model used when displaying unfiltered data.
+		/// </summary>
+		/// <value>
+		/// The data model.
+		/// </value>
 		public SQLiteTableModel<T> Model {
 			get; private set;
 		}
 		
+		/// <summary>
+		/// Reloads the data.
+		/// </summary>
 		public void ReloadData ()
 		{
 			SearchModel.ReloadData ();
@@ -87,6 +117,16 @@ namespace MonoTouch.SQLite
 			TableView.SectionFooterHeight = 0;
 		}
 		
+		/// <summary>
+		/// Gets the models associated with the given UITableView. This will
+		/// either be the <see cref="Model"/> or the <see cref="SearchModel"/>.
+		/// </summary>
+		/// <returns>
+		/// The model for for the given table view.
+		/// </returns>
+		/// <param name='tableView'>
+		/// The table view.
+		/// </param>
 		protected SQLiteTableModel<T> ModelForTableView (UITableView tableView)
 		{
 			if (tableView == SearchDisplayController.SearchResultsTableView)
@@ -95,6 +135,19 @@ namespace MonoTouch.SQLite
 				return Model;
 		}
 		
+		/// <summary>
+		/// Gets the path for the given item in the given table view if it is
+		/// currently visible to the user.
+		/// </summary>
+		/// <returns>
+		/// The path for the given item if it is visible, or null if it is not.
+		/// </returns>
+		/// <param name='tableView'>
+		/// The table view that is responsible for displaying the item.
+		/// </param>
+		/// <param name='item'>
+		/// The item to get the path for.
+		/// </param>
 		protected NSIndexPath PathForVisibleItem (UITableView tableView, T item)
 		{
 			SQLiteTableModel<T> model = ModelForTableView (tableView);
@@ -109,6 +162,16 @@ namespace MonoTouch.SQLite
 			return null;
 		}
 		
+		/// <summary>
+		/// Reloads the row for the given item if it is currently visible to the user.
+		/// This method is useful if the item values have changed.
+		/// </summary>
+		/// <param name='tableView'>
+		/// The table view that is responsible for displaying the item.
+		/// </param>
+		/// <param name='item'>
+		/// The item that should be re-displayed.
+		/// </param>
 		public void ReloadRowForItem (UITableView tableView, T item)
 		{
 			var path = PathForVisibleItem (tableView, item);
@@ -149,11 +212,35 @@ namespace MonoTouch.SQLite
 			return ModelForTableView (tableView).GetRowCount (section);
 		}
 		
-		protected virtual UITableViewCell GetCell (UITableView tableView, NSIndexPath indexPath, T item)
-		{
-			throw new NotImplementedException ();
-		}
+		/// <summary>
+		/// Gets the cell for the given item.
+		/// </summary>
+		/// <returns>
+		/// The cell used for displaying information about the given item.
+		/// </returns>
+		/// <param name='tableView'>
+		/// The table view responsible for displaying the item.
+		/// </param>
+		/// <param name='indexPath'>
+		/// The path of the item in the table view.
+		/// </param>
+		/// <param name='item'>
+		/// The item to display.
+		/// </param>
+		protected abstract UITableViewCell GetCell (UITableView tableView, NSIndexPath indexPath, T item);
 		
+		/// <summary>
+		/// Gets the item specified by the given path.
+		/// </summary>
+		/// <returns>
+		/// The item.
+		/// </returns>
+		/// <param name='tableView'>
+		/// The table view responsible for displaying the item.
+		/// </param>
+		/// <param name='indexPath'>
+		/// The path of the item in the table view.
+		/// </param>
 		protected T GetItem (UITableView tableView, NSIndexPath indexPath)
 		{
 			return ModelForTableView (tableView).GetItem (indexPath.Section, indexPath.Row);
