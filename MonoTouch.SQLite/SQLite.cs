@@ -294,7 +294,7 @@ namespace MonoTouch.SQLite
 				var indexGroup = aggregatedIndexes[indexName];
 				const string sqlFormat = "create index if not exists \"{0}\" on \"{1}\"(\"{2}\")";
 				var columns = String.Join("\",\"", indexGroup.OrderBy(i => i.Order).Select(i => i.ColumnName).ToArray());
-				var sql = String.Format(sqlFormat, "IDX_" + indexName, indexGroup.First().TableName, columns);
+				var sql = String.Format(sqlFormat, indexName, indexGroup.First().TableName, columns);
 				count += Execute(sql);
 			}
 			
