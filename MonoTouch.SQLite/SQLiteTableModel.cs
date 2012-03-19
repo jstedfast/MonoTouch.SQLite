@@ -27,6 +27,7 @@
 using System;
 using System.Linq;
 using System.Text;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 
@@ -54,6 +55,127 @@ namespace MonoTouch.SQLite {
 				return string.Format ("\"{0}\" desc", FieldName);
 			
 			return string.Format ("\"{0}\"", FieldName);
+		}
+	}
+	
+	public class SQLiteOrderByCollection : IList<SQLiteOrderBy>
+	{
+		List<SQLiteOrderBy> list = new List<SQLiteOrderBy> ();
+		
+		internal SQLiteOrderByCollection ()
+		{
+		}
+		
+		#region ICollection[SQLiteOrderBy] implementation
+		public void Add (SQLiteOrderBy orderBy)
+		{
+			list.Add (orderBy);
+			OnChanged ();
+		}
+
+		public void Clear ()
+		{
+			list.Clear ();
+			OnChanged ();
+		}
+
+		public bool Contains (SQLiteOrderBy orderBy)
+		{
+			return list.Contains (orderBy);
+		}
+
+		public void CopyTo (SQLiteOrderBy[] array, int arrayIndex)
+		{
+			list.CopyTo (array, arrayIndex);
+		}
+		
+		public int Count {
+			get { return list.Count; }
+		}
+		
+		public bool IsReadOnly {
+			get { return false; }
+		}
+
+		public bool Remove (SQLiteOrderBy orderBy)
+		{
+			if (list.Remove (orderBy)) {
+				OnChanged ();
+				return true;
+			}
+			
+			return false;
+		}
+		#endregion
+		
+		#region IList[SQLiteOrderBy] implementation
+		public int IndexOf (SQLiteOrderBy orderBy)
+		{
+			return list.IndexOf (orderBy);
+		}
+
+		public void Insert (int index, SQLiteOrderBy orderBy)
+		{
+			list.Insert (index, orderBy);
+			OnChanged ();
+		}
+
+		public void RemoveAt (int index)
+		{
+			list.RemoveAt (index);
+			OnChanged ();
+		}
+
+		public SQLiteOrderBy this[int index] {
+			get { return list[index]; }
+			set {
+				list[index] = value;
+				OnChanged ();
+			}
+		}
+		#endregion
+
+		#region IEnumerable[SQLiteOrderBy] implementation
+		public IEnumerator<SQLiteOrderBy> GetEnumerator ()
+		{
+			return list.GetEnumerator ();
+		}
+		#endregion
+
+		#region IEnumerable implementation
+		IEnumerator IEnumerable.GetEnumerator ()
+		{
+			return ((IEnumerable) list).GetEnumerator ();
+		}
+		#endregion
+		
+		public override string ToString ()
+		{
+			if (list.Count == 0)
+				return string.Empty;
+			
+			StringBuilder sb = new StringBuilder ("order by");
+			for (int i = 0; i < list.Count; i++) {
+				if (i > 0)
+					sb.Append (',');
+				
+				if (list[i].SortOrder == SQLiteSortOrder.Descending)
+					sb.AppendFormat (" \"{0}\" desc", list[i].FieldName);
+				else
+					sb.AppendFormat (" \"{0}\"", list[i].FieldName);
+			}
+			
+			return sb.ToString ();
+		}
+		
+		internal event EventHandler<EventArgs> Changed;
+		
+		void OnChanged ()
+		{
+			var handler = Changed;
+			
+			if (handler != null)
+				handler (this, null);
 		}
 	}
 	
@@ -128,18 +250,29 @@ namespace MonoTouch.SQLite {
 		
 		public SQLiteTableModel (SQLiteConnection sqlitedb, int pageSize, SQLiteOrderBy orderBy, string sectionExpr)
 		{
+			OrderBy = new SQLiteOrderByCollection ();
 			SectionExpression = sectionExpr;
 			Connection = sqlitedb;
 			PageSize = pageSize;
-			OrderBy = orderBy;
 			
 			if (sectionExpr != null) {
 				titleMap = new TableMapping (typeof (SectionTitle));
 				titleMap.Columns[0].Name = sectionExpr;
 			}
 			
+			if (orderBy != null)
+				OrderBy.Add (orderBy);
+			
+			OrderBy.Changed += OnSortOrderChanged;
 			Initialize (typeof (T));
 			ReloadData ();
+		}
+
+		void OnSortOrderChanged (object sender, EventArgs e)
+		{
+			ReloadData ();
+			query_args = null;
+			query = null;
 		}
 		
 		/// <summary>
@@ -187,7 +320,7 @@ namespace MonoTouch.SQLite {
 		/// <value>
 		/// The sort order of the model.
 		/// </value>
-		public SQLiteOrderBy OrderBy {
+		public SQLiteOrderByCollection OrderBy {
 			get; private set;
 		}
 		
@@ -423,8 +556,8 @@ namespace MonoTouch.SQLite {
 			else
 				args = new object [0];
 			
-			if (OrderBy != null)
-				query += " order by " + OrderBy.ToString ();
+			if (OrderBy.Count > 0)
+				query += " " + OrderBy.ToString ();
 			
 			return Connection.CreateCommand (query, args);
 		}
@@ -600,8 +733,8 @@ namespace MonoTouch.SQLite {
 			if (query == null) {
 				query = CreateQuery (out query_args);
 				
-				if (OrderBy != null)
-					query += " order by " + OrderBy.ToString ();
+				if (OrderBy.Count > 0)
+					query += " " + OrderBy.ToString ();
 			}
 			
 			string command = query + " limit " + limit + " offset " + offset;
