@@ -31,26 +31,26 @@ using System.Collections.Generic;
 using System.Reflection;
 
 namespace MonoTouch.SQLite {
-	public enum SQLiteOrderByDirection {
+	public enum SQLiteSortOrder {
 		Ascending,
 		Descending
 	}
 	
 	public class SQLiteOrderBy {
-		public SQLiteOrderByDirection Direction { get; private set; }
+		public SQLiteSortOrder SortOrder { get; private set; }
 		public string FieldName { get; private set; }
 		
-		public SQLiteOrderBy (string field) : this (field, SQLiteOrderByDirection.Ascending) { }
+		public SQLiteOrderBy (string field) : this (field, SQLiteSortOrder.Ascending) { }
 		
-		public SQLiteOrderBy (string field, SQLiteOrderByDirection dir)
+		public SQLiteOrderBy (string field, SQLiteSortOrder order)
 		{
 			FieldName = field;
-			Direction = dir;
+			SortOrder = order;
 		}
 		
 		public override string ToString ()
 		{
-			if (Direction == SQLiteOrderByDirection.Descending)
+			if (SortOrder == SQLiteSortOrder.Descending)
 				return string.Format ("\"{0}\" desc", FieldName);
 			
 			return string.Format ("\"{0}\"", FieldName);
