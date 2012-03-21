@@ -201,6 +201,7 @@ namespace MonoTouch.SQLite {
 		Dictionary<string, Type> types = new Dictionary<string, Type> (StringComparer.InvariantCultureIgnoreCase);
 		SQLiteWhereExpression searchExpr = null;
 		List<T> cache = new List<T> ();
+		string sectionExpression;
 		string searchText = null;
 		TableMapping titleMap;
 		object[] query_args;
@@ -255,17 +256,27 @@ namespace MonoTouch.SQLite {
 			Connection = sqlitedb;
 			PageSize = pageSize;
 			
-			if (sectionExpr != null) {
-				titleMap = new TableMapping (typeof (SectionTitle));
-				titleMap.Columns[0].Name = sectionExpr;
-			}
-			
 			if (orderBy != null)
 				OrderBy.Add (orderBy);
 			
 			OrderBy.Changed += OnSortOrderChanged;
 			Initialize (typeof (T));
 			ReloadData ();
+		}
+		
+		public SQLiteTableModel (SQLiteConnection sqlitedb, int pageSize, SQLiteOrderBy orderBy)
+			: this (sqlitedb, pageSize, orderBy, null)
+		{
+		}
+		
+		public SQLiteTableModel (SQLiteConnection sqlitedb, int pageSize, string sectionExpr)
+			: this (sqlitedb, pageSize, null, sectionExpr)
+		{
+		}
+		
+		public SQLiteTableModel (SQLiteConnection sqlitedb, int pageSize)
+			: this (sqlitedb, pageSize, null, null)
+		{
 		}
 
 		void OnSortOrderChanged (object sender, EventArgs e)
@@ -310,8 +321,23 @@ namespace MonoTouch.SQLite {
 		/// <value>
 		/// The section expression.
 		/// </value>
-		protected string SectionExpression {
-			get; private set;
+		public string SectionExpression {
+			get { return sectionExpression; }
+			set {
+				if (value == sectionExpression)
+					return;
+				
+				if (value != null) {
+					titleMap = new TableMapping (typeof (SectionTitle));
+					titleMap.Columns[0].Name = value;
+				}
+				
+				sectionExpression = value;
+				query_args = null;
+				query = null;
+				
+				ReloadData ();
+			}
 		}
 		
 		/// <summary>

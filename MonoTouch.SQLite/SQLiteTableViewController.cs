@@ -56,13 +56,18 @@ namespace MonoTouch.SQLite
 			AutoHideSearch = true;
 		}
 		
+		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize, string sectionExpression)
+			: this (sqlitedb, pageSize, null, sectionExpression)
+		{
+		}
+		
 		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize, SQLiteOrderBy orderBy)
 			: this (sqlitedb, pageSize, orderBy, null)
 		{
 		}
 		
 		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize)
-			: this (sqlitedb, pageSize, null)
+			: this (sqlitedb, pageSize, null, null)
 		{
 		}
 		
