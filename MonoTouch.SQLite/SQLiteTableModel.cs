@@ -916,7 +916,8 @@ namespace MonoTouch.SQLite {
 		
 		/// <summary>
 		/// Reloads the model. This should be called whenever the SQLite table changes
-		/// (e.g. whenever an item is added or removed).
+		/// (e.g. whenever an item is added or removed or when the search/section
+		/// expressions change).
 		/// </summary>
 		public virtual void ReloadData ()
 		{
