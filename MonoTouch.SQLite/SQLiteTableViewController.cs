@@ -56,18 +56,73 @@ namespace MonoTouch.SQLite
 			AutoHideSearch = true;
 		}
 		
+		/// <summary>
+		/// Initializes a new instance of the <see cref="MonoTouch.SQLite.SQLiteTableViewController`1"/> class.
+		/// </summary>
+		/// <param name='sqlitedb'>
+		/// The SQLite database connection.
+		/// </param>
+		/// <param name='pageSize'>
+		/// The number of items to page-in and page-out as the user scrolls.
+		/// </param>
+		/// <param name='sectionExpression'>
+		/// The sub-expression used to get distinct sections and their titles or null to display the data as a flat list.
+		/// </param>
 		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize, string sectionExpression)
 			: this (sqlitedb, pageSize, null, sectionExpression)
 		{
 		}
 		
+		/// <summary>
+		/// Initializes a new instance of the <see cref="MonoTouch.SQLite.SQLiteTableViewController`1"/> class.
+		/// </summary>
+		/// <param name='sqlitedb'>
+		/// The SQLite database connection.
+		/// </param>
+		/// <param name='pageSize'>
+		/// The number of items to page-in and page-out as the user scrolls.
+		/// </param>
+		/// <param name='orderBy'>
+		/// The field to sort by and the order in which to display the data or null to display the data in the default order.
+		/// </param>
 		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize, SQLiteOrderBy orderBy)
 			: this (sqlitedb, pageSize, orderBy, null)
 		{
 		}
 		
+		/// <summary>
+		/// Initializes a new instance of the <see cref="MonoTouch.SQLite.SQLiteTableViewController`1"/> class.
+		/// </summary>
+		/// <param name='sqlitedb'>
+		/// The SQLite database connection.
+		/// </param>
+		/// <param name='pageSize'>
+		/// The number of items to page-in and page-out as the user scrolls.
+		/// </param>
 		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize)
 			: this (sqlitedb, pageSize, null, null)
+		{
+		}
+		
+		/// <summary>
+		/// Initializes a new instance of the <see cref="MonoTouch.SQLite.SQLiteTableViewController`1"/> class.
+		/// 
+		/// Note: If you use this .ctor, you'll need to implement <see cref="CreateModel(bool)"/>.
+		/// </summary>
+		/// <param name='style'>
+		/// The UITableViewStyle.
+		/// </param>
+		public SQLiteTableViewController (UITableViewStyle style) : base (style)
+		{
+		}
+		
+		/// <summary>
+		/// Initializes a new instance of the <see cref="MonoTouch.SQLite.SQLiteTableViewController`1"/>
+		/// class using the UITableViewStyle.Plain style.
+		/// 
+		/// Note: If you use this .ctor, you'll need to implement <see cref="CreateModel(bool)"/>.
+		/// </summary>
+		public SQLiteTableViewController () : base (UITableViewStyle.Plain)
 		{
 		}
 		
@@ -105,9 +160,29 @@ namespace MonoTouch.SQLite
 			TableView.ReloadData ();
 		}
 		
+		/// <summary>
+		/// Creates the model.
+		/// </summary>
+		/// <returns>
+		/// The model.
+		/// </returns>
+		/// <param name='forSearching'>
+		/// Whether or not the model will be used for searching.
+		/// </param>
+		protected virtual SQLiteTableModel<T> CreateModel (bool forSearching)
+		{
+			throw new NotImplementedException ("You need to implement CreateModel(bool).");
+		}
+		
 		public override void ViewDidLoad ()
 		{
 			base.ViewDidLoad ();
+			
+			if (Model == null)
+				Model = CreateModel (false);
+			
+			if (SearchModel == null)
+				SearchModel = CreateModel (true);
 			
 			SearchDisplayController.SearchResultsTableView.AllowsMultipleSelectionDuringEditing = false;
 			SearchDisplayController.SearchResultsTableView.AllowsSelectionDuringEditing = false;
