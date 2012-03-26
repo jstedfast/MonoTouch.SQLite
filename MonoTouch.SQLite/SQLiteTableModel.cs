@@ -255,7 +255,8 @@ namespace MonoTouch.SQLite {
 			SectionExpression = sectionExpr;
 			Connection = sqlitedb;
 			PageSize = pageSize;
-			
+			if(!string.IsNullOrEmpty(sectionExpr))
+				OrderBy.Add(new SQLiteOrderBy(sectionExpr,SQLiteSortOrder.Ascending));
 			if (orderBy != null)
 				OrderBy.Add (orderBy);
 			
