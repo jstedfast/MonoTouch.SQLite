@@ -1,0 +1,5 @@
+*.dll
+*.mdb
+[Bb]in
+[Dd]ebug*/
+obj/
