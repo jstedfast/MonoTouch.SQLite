@@ -479,19 +479,19 @@ namespace MonoTouch.SQLite {
 							
 							// Search only the aliased fields for the string token...
 							foreach (var field in fields)
-								or.Children.Add (new SQLiteLikeExpression (field, match));
+								or.Add (new SQLiteLikeExpression (field, match));
 							
-							and.Children.Add (or);
+							and.Add (or);
 						}
 					} else {
 						SQLiteOrExpression or = new SQLiteOrExpression ();
 						
 						foreach (var col in types) {
 							if (col.Value == typeof (string))
-								or.Children.Add (new SQLiteLikeExpression (col.Key, token));
+								or.Add (new SQLiteLikeExpression (col.Key, token));
 						}
 						
-						and.Children.Add (or);
+						and.Add (or);
 					}
 				} else if (token != null) {
 					// Search all fields for this string token...
@@ -500,23 +500,23 @@ namespace MonoTouch.SQLite {
 					if (!quoted && aliases.TryGetValue (token, out fields)) {
 						foreach (var field in fields) {
 							if (types[field] == typeof (bool))
-								or.Children.Add (new SQLiteIsExpression (field, true));
+								or.Add (new SQLiteIsExpression (field, true));
 						}
 					}
 					
 					foreach (var col in types) {
 						if (col.Value == typeof (string))
-							or.Children.Add (new SQLiteLikeExpression (col.Key, token));
+							or.Add (new SQLiteLikeExpression (col.Key, token));
 					}
 					
-					and.Children.Add (or);
+					and.Add (or);
 				}
 			}
 			
-			if (!and.HasChildren)
+			if (and.Count == 0)
 				return null;
 			
-			where.Children.Add (and);
+			where.Expression = and;
 			
 			return where;
 		}
@@ -625,11 +625,11 @@ namespace MonoTouch.SQLite {
 				SQLiteWhereExpression where = new SQLiteWhereExpression ();
 				SQLiteAndExpression and = new SQLiteAndExpression ();
 				
-				and.Children.Add (new SQLiteExactExpression (SectionExpression, SectionTitles[section]));
-				if (SearchExpression != null && SearchExpression.HasChildren)
-					and.Children.AddRange (SearchExpression.Children);
+				and.Add (new SQLiteInlineIsExpression (SectionExpression, SectionTitles[section]));
+				if (SearchExpression != null && SearchExpression.Expression != null)
+					and.AddRange (SearchExpression.Expression);
 				
-				where.Children.Add (and);
+				where.Expression = and;
 				
 				query += " " + where.ToString (out args);
 			} else if (SearchExpression != null) {

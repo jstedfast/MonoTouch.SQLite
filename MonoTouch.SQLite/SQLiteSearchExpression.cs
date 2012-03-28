@@ -28,18 +28,17 @@ using System;
 using System.Text;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace MonoTouch.SQLite {
-	public abstract class SQLiteSearchExpression
+	public interface ISQLiteSearchExpression
 	{
-		public virtual List<SQLiteSearchExpression> Children {
-			get { return null; }
-		}
-		
-		public virtual bool HasChildren {
-			get { return false; }
-		}
-		
+		void AppendToQuery (StringBuilder query, List<object> args);
+		string ToString (out object[] args);
+	}
+	
+	public abstract class SQLiteSearchExpression : ISQLiteSearchExpression
+	{
 		public abstract void AppendToQuery (StringBuilder query, List<object> args);
 		
 		public string ToString (out object[] args)
@@ -54,41 +53,11 @@ namespace MonoTouch.SQLite {
 		}
 	}
 	
-	public class SQLiteWhereExpression : SQLiteSearchExpression
+	public abstract class SQLiteComparisonExpression : SQLiteSearchExpression
 	{
-		List<SQLiteSearchExpression> children = new List<SQLiteSearchExpression> ();
-		
-		public SQLiteWhereExpression ()
+		public SQLiteComparisonExpression (string fieldName, object match)
 		{
-		}
-		
-		public override List<SQLiteSearchExpression> Children {
-			get { return children; }
-		}
-		
-		public override bool HasChildren {
-			get { return children.Count > 0; }
-		}
-		
-		public override void AppendToQuery (StringBuilder query, List<object> args)
-		{
-			if (!HasChildren)
-				return;
-			
-			query.Append ("where");
-			
-			for (int i = 0; i < children.Count; i++) {
-				query.Append (" ");
-				children[i].AppendToQuery (query, args);
-			}
-		}
-	}
-	
-	public class SQLiteLikeExpression : SQLiteSearchExpression
-	{
-		public SQLiteLikeExpression (string field, string match)
-		{
-			FieldName = field;
+			FieldName = fieldName;
 			Match = match;
 		}
 		
@@ -96,8 +65,29 @@ namespace MonoTouch.SQLite {
 			get; private set;
 		}
 		
-		public string Match {
+		public abstract string Operator {
+			get;
+		}
+		
+		public object Match {
 			get; private set;
+		}
+		
+		public override void AppendToQuery (StringBuilder query, List<object> args)
+		{
+			query.AppendFormat ("{0} {1} ?", FieldName, Operator);
+			args.Add (Match);
+		}
+	}
+	
+	public class SQLiteLikeExpression : SQLiteComparisonExpression
+	{
+		public SQLiteLikeExpression (string fieldName, string match) : base (fieldName, match)
+		{
+		}
+		
+		public override string Operator {
+			get { return "like"; }
 		}
 		
 		static char[] LikeSpecials = new char[] { '\\', '_', '%' };
@@ -106,12 +96,14 @@ namespace MonoTouch.SQLite {
 		{
 			int first = text.IndexOfAny (LikeSpecials);
 			
-			escaped = false;
-			
-			if (first == -1)
+			if (first == -1) {
+				escaped = false;
 				return text;
+			}
 			
 			var sb = new StringBuilder (text, 0, first, text.Length + 1);
+			
+			escaped = true;
 			
 			for (int i = first; i < text.Length; i++) {
 				switch (text[i]) {
@@ -119,7 +111,6 @@ namespace MonoTouch.SQLite {
 				case '_': // matches any single character
 				case '%': // matches any sequence of zero or more characters
 					sb.Append ('\\');
-					escaped = true;
 					break;
 				default:
 					break;
@@ -136,7 +127,7 @@ namespace MonoTouch.SQLite {
 			string pattern;
 			bool escaped;
 			
-			pattern = EscapeTextForLike (Match, out escaped);
+			pattern = EscapeTextForLike ((string) Match, out escaped);
 			if (escaped) {
 				query.AppendFormat ("{0} like ? escape = ?", FieldName);
 				args.Add ("%" + pattern + "%");
@@ -148,9 +139,100 @@ namespace MonoTouch.SQLite {
 		}
 	}
 	
-	public class SQLiteExactExpression : SQLiteSearchExpression
+	public class SQLiteIsExpression : SQLiteComparisonExpression
 	{
-		public SQLiteExactExpression (string field, string match)
+		public SQLiteIsExpression (string fieldName, object match) : base (fieldName, match)
+		{
+		}
+		
+		public override string Operator {
+			get { return "is"; }
+		}
+	}
+	
+	public class SQLiteEqualToExpression : SQLiteComparisonExpression
+	{
+		public SQLiteEqualToExpression (string fieldName, object match) : base (fieldName, match)
+		{
+		}
+		
+		public override string Operator {
+			get { return "="; }
+		}
+	}
+	
+	public class SQLiteGreaterThanOrEqualToExpression : SQLiteComparisonExpression
+	{
+		public SQLiteGreaterThanOrEqualToExpression (string fieldName, object match) : base (fieldName, match)
+		{
+		}
+		
+		public override string Operator {
+			get { return ">="; }
+		}
+	}
+	
+	public class SQLiteGreaterThanExpression : SQLiteComparisonExpression
+	{
+		public SQLiteGreaterThanExpression (string fieldName, object match) : base (fieldName, match)
+		{
+		}
+		
+		public override string Operator {
+			get { return ">"; }
+		}
+	}
+	
+	public class SQLiteLessThanOrEqualToExpression : SQLiteComparisonExpression
+	{
+		public SQLiteLessThanOrEqualToExpression (string fieldName, object match) : base (fieldName, match)
+		{
+		}
+		
+		public override string Operator {
+			get { return "<="; }
+		}
+	}
+	
+	public class SQLiteLessThanExpression : SQLiteComparisonExpression
+	{
+		public SQLiteLessThanExpression (string fieldName, object match) : base (fieldName, match)
+		{
+		}
+		
+		public override string Operator {
+			get { return "<"; }
+		}
+	}
+	
+	public class SQLiteWhereExpression : SQLiteSearchExpression
+	{
+		public SQLiteWhereExpression ()
+		{
+		}
+		
+		public SQLiteWhereExpression (SQLiteCollectionExpression expr)
+		{
+			Expression = expr;
+		}
+		
+		public SQLiteCollectionExpression Expression {
+			get; set;
+		}
+		
+		public override void AppendToQuery (StringBuilder query, List<object> args)
+		{
+			if (Expression == null || Expression.Count == 0)
+				return;
+			
+			query.Append ("where ");
+			Expression.AppendToQuery (query, args);
+		}
+	}
+	
+	internal class SQLiteInlineIsExpression : SQLiteSearchExpression
+	{
+		public SQLiteInlineIsExpression (string field, string match)
 		{
 			FieldName = field;
 			Match = match;
@@ -170,115 +252,128 @@ namespace MonoTouch.SQLite {
 		}
 	}
 	
-	public class SQLiteEqualsExpression : SQLiteSearchExpression
+	public abstract class SQLiteCollectionExpression : SQLiteSearchExpression, ICollection<ISQLiteSearchExpression>
 	{
-		public SQLiteEqualsExpression (string field, object match)
+		List<ISQLiteSearchExpression> children = new List<ISQLiteSearchExpression> ();
+		
+		public SQLiteCollectionExpression ()
 		{
-			FieldName = field;
-			Match = match;
 		}
 		
-		public string FieldName {
-			get; private set;
+		public SQLiteCollectionExpression (IEnumerable<ISQLiteSearchExpression> collection)
+		{
+			children.AddRange (collection);
 		}
 		
-		public object Match {
-			get; private set;
+		public ReadOnlyCollection<ISQLiteSearchExpression> Children {
+			get { return children.AsReadOnly (); }
+		}
+		
+		public abstract string Operator {
+			get;
 		}
 		
 		public override void AppendToQuery (StringBuilder query, List<object> args)
 		{
-			query.AppendFormat ("{0} = ?", FieldName);
-			args.Add (Match);
+			if (children.Count > 1)
+				query.Append ('(');
+			
+			for (int i = 0; i < children.Count; i++) {
+				if (i > 0) {
+					query.Append (' ');
+					query.Append (Operator);
+					query.Append (' ');
+				}
+				
+				children[i].AppendToQuery (query, args);
+			}
+			
+			if (children.Count > 1)
+				query.Append (')');
 		}
+		
+		public void AddRange (IEnumerable<ISQLiteSearchExpression> collection)
+		{
+			children.AddRange (collection);
+		}
+
+		#region ICollection[ISQLiteSearchExpression] implementation
+		public void Add (ISQLiteSearchExpression expr)
+		{
+			children.Add (expr);
+		}
+
+		public void Clear ()
+		{
+			children.Clear ();
+		}
+
+		public bool Contains (ISQLiteSearchExpression expr)
+		{
+			return children.Contains (expr);
+		}
+
+		public void CopyTo (ISQLiteSearchExpression[] array, int arrayIndex)
+		{
+			children.CopyTo (array, arrayIndex);
+		}
+
+		public bool Remove (ISQLiteSearchExpression expr)
+		{
+			return children.Remove (expr);
+		}
+
+		public int Count {
+			get { return children.Count; }
+		}
+
+		public bool IsReadOnly {
+			get { return false; }
+		}
+		#endregion
+
+		#region IEnumerable[ISQLiteSearchExpression] implementation
+		public IEnumerator<ISQLiteSearchExpression> GetEnumerator ()
+		{
+			return children.GetEnumerator ();
+		}
+		#endregion
+
+		#region IEnumerable implementation
+		IEnumerator IEnumerable.GetEnumerator ()
+		{
+			return children.GetEnumerator ();
+		}
+		#endregion
 	}
 	
-	public class SQLiteIsExpression : SQLiteSearchExpression
+	public class SQLiteAndExpression : SQLiteCollectionExpression
 	{
-		public SQLiteIsExpression (string field, object match)
-		{
-			FieldName = field;
-			Match = match;
-		}
-		
-		public string FieldName {
-			get; private set;
-		}
-		
-		public object Match {
-			get; private set;
-		}
-		
-		public override void AppendToQuery (StringBuilder query, List<object> args)
-		{
-			query.AppendFormat ("{0} is ?", FieldName);
-			args.Add (Match);
-		}
-	}
-	
-	public class SQLiteAndExpression : SQLiteSearchExpression
-	{
-		List<SQLiteSearchExpression> children = new List<SQLiteSearchExpression> ();
-		
 		public SQLiteAndExpression ()
 		{
 		}
 		
-		public override List<SQLiteSearchExpression> Children {
-			get { return children; }
-		}
-		
-		public override bool HasChildren {
-			get { return children.Count > 0; }
-		}
-		
-		public override void AppendToQuery (StringBuilder query, List<object> args)
+		public SQLiteAndExpression (IEnumerable<ISQLiteSearchExpression> collection) : base (collection)
 		{
-			if (children.Count > 1)
-				query.Append ('(');
-			
-			for (int i = 0; i < children.Count; i++) {
-				if (i > 0)
-					query.Append (" and ");
-				
-				children[i].AppendToQuery (query, args);
-			}
-			
-			if (children.Count > 1)
-				query.Append (')');
+		}
+		
+		public override string Operator {
+			get { return "and"; }
 		}
 	}
 	
-	public class SQLiteOrExpression : SQLiteSearchExpression
+	public class SQLiteOrExpression : SQLiteCollectionExpression
 	{
-		List<SQLiteSearchExpression> children = new List<SQLiteSearchExpression> ();
-		
 		public SQLiteOrExpression ()
 		{
 		}
 		
-		public override List<SQLiteSearchExpression> Children {
-			get { return children; }
-		}
-		
-		public override bool HasChildren {
-			get { return children.Count > 0; }
-		}
-		
-		public override void AppendToQuery (StringBuilder query, List<object> args)
+		public SQLiteOrExpression (IEnumerable<ISQLiteSearchExpression> collection) : base (collection)
 		{
-			if (children.Count > 1)
-				query.Append ('(');
-			
-			for (int i = 0; i < children.Count; i++) {
-				if (i > 0)
-					query.Append (" or ");
-				
-				children[i].AppendToQuery (query, args);
-			}
-			
-			if (children.Count > 1)
-				query.Append (')');
+		}
+		
+		public override string Operator {
+			get { return "or"; }
 		}
 	}
 }
