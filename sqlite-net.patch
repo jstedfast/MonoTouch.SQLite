@@ -1,7 +1,7 @@
-diff --git a/src/SQLite.cs b/src/SQLite.cs
-index e56cfa7..fd72b50 100644
---- a/src/SQLite.cs
-+++ b/src/SQLite.cs
+diff --git a/MonoTouch.SQLite/SQLite.cs b/MonoTouch.SQLite/SQLite.cs
+index df8daa7..4ca1a35 100644
+--- a/MonoTouch.SQLite/SQLite.cs
++++ b/MonoTouch.SQLite/SQLite.cs
 @@ -44,7 +44,7 @@ using Sqlite3DatabaseHandle = System.IntPtr;
  using Sqlite3Statement = System.IntPtr;
  #endif
@@ -11,25 +11,7 @@ index e56cfa7..fd72b50 100644
  {
  	public class SQLiteException : System.Exception
  	{
-@@ -274,7 +274,7 @@ namespace SQLite
- 					c => c.Indices,
- 					(c, i) => new IndexInfo
- 						{
--							IndexName = i.Name ?? c.Name,
-+							IndexName = i.Name ?? map.TableName + "_" + c.Name,
- 							Order = i.Order,
- 							ColumnName = c.Name,
- 							TableName = map.TableName
-@@ -294,7 +294,7 @@ namespace SQLite
- 				var indexGroup = aggregatedIndexes[indexName];
- 				const string sqlFormat = "create index if not exists \"{0}\" on \"{1}\"(\"{2}\")";
- 				var columns = String.Join("\",\"", indexGroup.OrderBy(i => i.Order).Select(i => i.ColumnName).ToArray());
--				var sql = String.Format(sqlFormat, "IX_" + indexName, indexGroup.First().TableName, columns);
-+				var sql = String.Format(sqlFormat, "IDX_" + indexName, indexGroup.First().TableName, columns);
- 				count += Execute(sql);
- 			}
- 			
-@@ -355,7 +355,7 @@ namespace SQLite
+@@ -387,7 +387,7 @@ namespace SQLite
  		/// <returns>
  		/// A <see cref="SQLiteCommand"/>
  		/// </returns>
@@ -38,7 +20,7 @@ index e56cfa7..fd72b50 100644
  		{
  			if (!_open) {
  				throw SQLiteException.New (SQLite3.Result.Error, "Cannot create commands from unopened database");
-@@ -942,7 +942,7 @@ namespace SQLite
+@@ -983,7 +983,7 @@ namespace SQLite
  
  		public abstract class Column
  		{
@@ -47,3 +29,57 @@ index e56cfa7..fd72b50 100644
  
  			public Type ColumnType { get; protected set; }
  
+diff --git a/sqlite-net.patch b/sqlite-net.patch
+index ddbb4fe..e69de29 100644
+--- a/sqlite-net.patch
++++ b/sqlite-net.patch
+@@ -1,49 +0,0 @@
+-diff --git a/src/SQLite.cs b/src/SQLite.cs
+-index e56cfa7..fd72b50 100644
+---- a/src/SQLite.cs
+-+++ b/src/SQLite.cs
+-@@ -44,7 +44,7 @@ using Sqlite3DatabaseHandle = System.IntPtr;
+- using Sqlite3Statement = System.IntPtr;
+- #endif
+- 
+--namespace SQLite
+-+namespace MonoTouch.SQLite
+- {
+- 	public class SQLiteException : System.Exception
+- 	{
+-@@ -274,7 +274,7 @@ namespace SQLite
+- 					c => c.Indices,
+- 					(c, i) => new IndexInfo
+- 						{
+--							IndexName = i.Name ?? c.Name,
+-+							IndexName = i.Name ?? map.TableName + "_" + c.Name,
+- 							Order = i.Order,
+- 							ColumnName = c.Name,
+- 							TableName = map.TableName
+-@@ -294,7 +294,7 @@ namespace SQLite
+- 				var indexGroup = aggregatedIndexes[indexName];
+- 				const string sqlFormat = "create index if not exists \"{0}\" on \"{1}\"(\"{2}\")";
+- 				var columns = String.Join("\",\"", indexGroup.OrderBy(i => i.Order).Select(i => i.ColumnName).ToArray());
+--				var sql = String.Format(sqlFormat, "IX_" + indexName, indexGroup.First().TableName, columns);
+-+				var sql = String.Format(sqlFormat, "IDX_" + indexName, indexGroup.First().TableName, columns);
+- 				count += Execute(sql);
+- 			}
+- 			
+-@@ -355,7 +355,7 @@ namespace SQLite
+- 		/// <returns>
+- 		/// A <see cref="SQLiteCommand"/>
+- 		/// </returns>
+--		public SQLiteCommand CreateCommand (string cmdText, params object[] ps)
+-+		public SQLiteCommand CreateCommand (string cmdText, object[] ps)
+- 		{
+- 			if (!_open) {
+- 				throw SQLiteException.New (SQLite3.Result.Error, "Cannot create commands from unopened database");
+-@@ -942,7 +942,7 @@ namespace SQLite
+- 
+- 		public abstract class Column
+- 		{
+--			public string Name { get; protected set; }
+-+			public string Name { get; internal set; }
+- 
+- 			public Type ColumnType { get; protected set; }
+- 
