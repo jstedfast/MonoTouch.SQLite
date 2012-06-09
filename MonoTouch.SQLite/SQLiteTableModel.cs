@@ -283,8 +283,6 @@ namespace MonoTouch.SQLite {
 		void OnSortOrderChanged (object sender, EventArgs e)
 		{
 			ReloadData ();
-			query_args = null;
-			query = null;
 		}
 		
 		/// <summary>
@@ -334,9 +332,6 @@ namespace MonoTouch.SQLite {
 				}
 				
 				sectionExpression = value;
-				query_args = null;
-				query = null;
-				
 				ReloadData ();
 			}
 		}
@@ -374,9 +369,6 @@ namespace MonoTouch.SQLite {
 					return;
 				
 				searchExpr = value;
-				query_args = null;
-				query = null;
-				
 				ReloadData ();
 			}
 		}
@@ -923,6 +915,8 @@ namespace MonoTouch.SQLite {
 		public virtual void ReloadData ()
 		{
 			cache.Clear ();
+			query_args = null;
+			query = null;
 			titles = null;
 			sections = -1;
 			rows = null;
