@@ -179,7 +179,7 @@ namespace MonoTouch.SQLite {
 		}
 	}
 	
-	[AttributeUsage (AttributeTargets.Property)]
+	[AttributeUsage (AttributeTargets.Property, AllowMultiple = true)]
 	public class SQLiteSearchAliasAttribute : Attribute {
 		public SQLiteSearchAliasAttribute (string alias)
 		{
