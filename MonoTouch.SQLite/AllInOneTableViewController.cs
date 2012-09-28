@@ -137,10 +137,10 @@ namespace MonoTouch.SQLite {
 				return controller.GetViewForFooter (tableView, section);
 			}
 			
-			public override float GetHeightForRow (UITableView tableView, NSIndexPath indexPath)
-			{
-				return controller.GetHeightForRow (tableView, indexPath);
-			}
+			//public override float GetHeightForRow (UITableView tableView, NSIndexPath indexPath)
+			//{
+			//	return controller.GetHeightForRow (tableView, indexPath);
+			//}
 			
 			public override float GetHeightForHeader (UITableView tableView, int section)
 			{
@@ -254,7 +254,10 @@ namespace MonoTouch.SQLite {
 		AllInOneSearchDisplayDelegate searchDisplayDelegate;
 		AllInOneTableViewDataSource tableViewDataSource;
 		AllInOneTableViewDelegate tableViewDelegate;
+		bool searchLoaded = false;
 		UISearchBar searchBar;
+		float rowHeight = -1;
+		bool loaded = false;
 		
 		public AllInOneTableViewController (UITableViewStyle style) : base (style)
 		{
@@ -283,6 +286,22 @@ namespace MonoTouch.SQLite {
 		public string SearchPlaceholder {
 			get; set;
 		}
+
+		protected float RowHeight {
+			get { return rowHeight; }
+			set {
+				if (rowHeight == value)
+					return;
+
+				if (searchLoaded)
+					SearchDisplayController.SearchResultsTableView.RowHeight = value;
+
+				if (loaded)
+					TableView.RowHeight = value;
+
+				rowHeight = value;
+			}
+		}
 		
 		protected virtual UISearchBar CreateSearchBar ()
 		{
@@ -308,6 +327,11 @@ namespace MonoTouch.SQLite {
 			
 			TableView.DataSource = tableViewDataSource;
 			TableView.Delegate = tableViewDelegate;
+
+			if (rowHeight > 0)
+				TableView.RowHeight = rowHeight;
+
+			loaded = true;
 		}
 		
 		public override void ViewDidUnload ()
@@ -338,6 +362,9 @@ namespace MonoTouch.SQLite {
 				searchBar.Dispose ();
 				searchBar = null;
 			}
+
+			searchLoaded = false;
+			loaded = false;
 		}
 		
 		public void HideSearchBar ()
@@ -440,10 +467,10 @@ namespace MonoTouch.SQLite {
 			return null;
 		}
 		
-		protected virtual float GetHeightForRow (UITableView tableView, NSIndexPath indexPath)
-		{
-			return tableView.RowHeight;
-		}
+		//protected virtual float GetHeightForRow (UITableView tableView, NSIndexPath indexPath)
+		//{
+		//	return tableView.RowHeight;
+		//}
 		
 		protected virtual float GetHeightForHeader (UITableView tableView, int section)
 		{
@@ -497,10 +524,18 @@ namespace MonoTouch.SQLite {
 		
 		protected virtual void DidLoadSearchResults (UISearchDisplayController controller, UITableView tableView)
 		{
+			tableView.AutoresizingMask = UIViewAutoresizing.FlexibleHeight | UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleTopMargin;
+			tableView.AutosizesSubviews = true;
+
+			if (rowHeight > 0)
+				tableView.RowHeight = rowHeight;
+
+			searchLoaded = true;
 		}
 		
 		protected virtual void WillUnloadSearchResults (UISearchDisplayController controller, UITableView tableView)
 		{
+			searchLoaded = false;
 		}
 		
 		protected virtual void WillShowSearchResults (UISearchDisplayController controller, UITableView tableView)
