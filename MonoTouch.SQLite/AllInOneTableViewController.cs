@@ -288,7 +288,7 @@ namespace MonoTouch.SQLite {
 		}
 
 		protected float RowHeight {
-			get { return rowHeight; }
+			get { return rowHeight > 0 || !loaded ? rowHeight : TableView.RowHeight; }
 			set {
 				if (rowHeight == value)
 					return;
