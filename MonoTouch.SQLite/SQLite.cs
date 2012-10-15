@@ -19,7 +19,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 //
-
 #if WINDOWS_PHONE
 #define USE_CSHARP_SQLITE
 #endif
@@ -29,11 +28,9 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using System.Reflection;
-#if NETFX_CORE
-using System.Reflection.RuntimeExtensions;
-#endif
 using System.Linq;
 using System.Linq.Expressions;
+using System.Threading;
 
 #if USE_CSHARP_SQLITE
 using Community.CsharpSqlite;
@@ -84,6 +81,9 @@ namespace MonoTouch.SQLite
 		private System.Diagnostics.Stopwatch _sw;
 		private long _elapsedMilliseconds = 0;
 
+		private int _trasactionDepth = 0;
+		private Random _rand = new Random ();
+
 		public Sqlite3DatabaseHandle Handle { get; private set; }
 #if USE_CSHARP_SQLITE
 		internal static readonly Sqlite3DatabaseHandle NullHandle = null;
@@ -97,22 +97,32 @@ namespace MonoTouch.SQLite
 
 		public bool Trace { get; set; }
 
+		public bool StoreDateTimeAsTicks { get; private set; }
+
 		/// <summary>
 		/// Constructs a new SQLiteConnection and opens a SQLite database specified by databasePath.
 		/// </summary>
 		/// <param name="databasePath">
 		/// Specifies the path to the database file.
 		/// </param>
-		public SQLiteConnection (string databasePath)
+		/// <param name="storeDateTimeAsTicks">
+		/// Specifies whether to store DateTime properties as ticks (true) or strings (false). You
+		/// absolutely do want to store them as Ticks in all new projects. The default of false is
+		/// only here for backwards compatibility. There is a *significant* speed advantage, with no
+		/// down sides, when setting storeDateTimeAsTicks = true.
+		/// </param>
+		public SQLiteConnection (string databasePath, bool storeDateTimeAsTicks = false)
 		{
 			DatabasePath = databasePath;
 			Sqlite3DatabaseHandle handle;
 			var r = SQLite3.Open (DatabasePath, out handle);
 			Handle = handle;
 			if (r != SQLite3.Result.OK) {
-				throw SQLiteException.New (r, "Could not open database file: " + DatabasePath);
+				throw SQLiteException.New (r, String.Format ("Could not open database file: {0} ({1})", DatabasePath, r));
 			}
 			_open = true;
+
+			StoreDateTimeAsTicks = storeDateTimeAsTicks;
 			
 			BusyTimeout = TimeSpan.FromSeconds (0.1);
 		}
@@ -123,16 +133,40 @@ namespace MonoTouch.SQLite
 		/// <param name="databasePath">
 		/// Specifies the path to the database file.
 		/// </param>
-		public SQLiteConnection (string databasePath, SQLiteOpenFlags openFlags)
+		/// <param name="storeDateTimeAsTicks">
+		/// Specifies whether to store DateTime properties as ticks (true) or strings (false). You
+		/// absolutely do want to store them as Ticks in all new projects. The default of false is
+		/// only here for backwards compatibility. There is a *significant* speed advantage, with no
+		/// down sides, when setting storeDateTimeAsTicks = true.
+		/// </param>
+		public SQLiteConnection (string databasePath, SQLiteOpenFlags openFlags, bool storeDateTimeAsTicks = false)
 		{
 			DatabasePath = databasePath;
 			Sqlite3DatabaseHandle handle;
-			var r = SQLite3.Open (DatabasePath, out handle, (int) openFlags, IntPtr.Zero);
+			
+#if SILVERLIGHT
+			var r = SQLite3.Open (databasePath, out handle, (int)openFlags, IntPtr.Zero);
+#else
+			// open using the byte[]
+			// in the case where the path may include Unicode
+			// force open to using UTF-8 using sqlite3_open_v2
+			byte[] databasePathAsBytes;
+			int databasePathLength;
+			
+			databasePathLength = System.Text.Encoding.UTF8.GetByteCount(DatabasePath);
+			databasePathAsBytes = new byte[databasePathLength + 1];
+			databasePathLength = System.Text.Encoding.UTF8.GetBytes(DatabasePath, 0, DatabasePath.Length, databasePathAsBytes, 0);
+
+			var r = SQLite3.Open (databasePathAsBytes, out handle, (int) openFlags, IntPtr.Zero);
+#endif
+
 			Handle = handle;
 			if (r != SQLite3.Result.OK) {
-				throw SQLiteException.New (r, "Could not open database file: " + DatabasePath);
+				throw SQLiteException.New (r, String.Format ("Could not open database file: {0} ({1})", DatabasePath, r));
 			}
 			_open = true;
+
+			StoreDateTimeAsTicks = storeDateTimeAsTicks;
 			
 			BusyTimeout = TimeSpan.FromSeconds (0.1);
 		}
@@ -276,7 +310,7 @@ namespace MonoTouch.SQLite
 			}
 			var query = "create table if not exists \"" + map.TableName + "\"(\n";
 			
-			var decls = map.Columns.Select (p => Orm.SqlDecl (p));
+			var decls = map.Columns.Select (p => Orm.SqlDecl (p, StoreDateTimeAsTicks));
 			var decl = string.Join (",\n", decls.ToArray ());
 			query += decl;
 			query += ")";
@@ -360,7 +394,7 @@ namespace MonoTouch.SQLite
 			}
 			
 			foreach (var p in toBeAdded) {
-				var addCol = "alter table \"" + map.TableName + "\" add column " + Orm.SqlDecl (p);
+				var addCol = "alter table \"" + map.TableName + "\" add column " + Orm.SqlDecl (p, StoreDateTimeAsTicks);
 				Execute (addCol);
 			}
 		}
@@ -387,14 +421,14 @@ namespace MonoTouch.SQLite
 		/// <returns>
 		/// A <see cref="SQLiteCommand"/>
 		/// </returns>
-		public SQLiteCommand CreateCommand (string cmdText, object[] ps)
+		public SQLiteCommand CreateCommand (string cmdText, object[] args)
 		{
 			if (!_open) {
 				throw SQLiteException.New (SQLite3.Result.Error, "Cannot create commands from unopened database");
 			} else {
 				var cmd = NewCommand ();
 				cmd.CommandText = cmdText;
-				foreach (var o in ps) {
+				foreach (var o in args) {
 					cmd.Bind (o);
 				}
 				return cmd;
@@ -429,8 +463,31 @@ namespace MonoTouch.SQLite
 				_sw.Reset ();
 				_sw.Start ();
 			}
+
+			var r = cmd.ExecuteNonQuery ();
 			
-			int r = cmd.ExecuteNonQuery ();
+			if (TimeExecution) {
+				_sw.Stop ();
+				_elapsedMilliseconds += _sw.ElapsedMilliseconds;
+				Debug.WriteLine (string.Format ("Finished in {0} ms ({1:0.0} s total)", _sw.ElapsedMilliseconds, _elapsedMilliseconds / 1000.0));
+			}
+			
+			return r;
+		}
+
+		public T ExecuteScalar<T> (string query, params object[] args)
+		{
+			var cmd = CreateCommand (query, args);
+			
+			if (TimeExecution) {
+				if (_sw == null) {
+					_sw = new System.Diagnostics.Stopwatch ();
+				}
+				_sw.Reset ();
+				_sw.Start ();
+			}
+			
+			var r = cmd.ExecuteScalar<T> ();
 			
 			if (TimeExecution) {
 				_sw.Stop ();
@@ -566,35 +623,247 @@ namespace MonoTouch.SQLite
 		public T Get<T> (object pk) where T : new()
 		{
 			var map = GetMapping (typeof(T));
-			string query = string.Format ("select * from \"{0}\" where \"{1}\" = ?", map.TableName, map.PK.Name);
-			return Query<T> (query, pk).First ();
+			return Query<T> (map.GetByPrimaryKeySql, pk).First ();
+		}
+
+		/// <summary>
+		/// Attempts to retrieve the first object that matches the predicate from the table
+		/// associated with the specified type.
+		/// </summary>
+		/// <param name="predicate">
+		/// A predicate for which object to find.
+		/// </param>
+		/// <returns>
+		/// The object that matches the given predicate. Throws a not found exception
+		/// if the object is not found.
+		/// </returns>
+		public T Get<T> (Expression<Func<T, bool>> predicate) where T : new()
+		{
+			return Table<T> ().Where (predicate).First ();
+		}
+
+		/// <summary>
+		/// Attempts to retrieve an object with the given primary key from the table
+		/// associated with the specified type. Use of this method requires that
+		/// the given type have a designated PrimaryKey (using the PrimaryKeyAttribute).
+		/// </summary>
+		/// <param name="pk">
+		/// The primary key.
+		/// </param>
+		/// <returns>
+		/// The object with the given primary key or null
+		/// if the object is not found.
+		/// </returns>
+		public T Find<T> (object pk) where T : new ()
+		{
+			var map = GetMapping (typeof (T));
+			return Query<T> (map.GetByPrimaryKeySql, pk).FirstOrDefault ();
+		}
+
+		/// <summary>
+		/// Attempts to retrieve an object with the given primary key from the table
+		/// associated with the specified type. Use of this method requires that
+		/// the given type have a designated PrimaryKey (using the PrimaryKeyAttribute).
+		/// </summary>
+		/// <param name="pk">
+		/// The primary key.
+		/// </param>
+		/// <param name="map">
+		/// The TableMapping used to identify the object type.
+		/// </param>
+		/// <returns>
+		/// The object with the given primary key or null
+		/// if the object is not found.
+		/// </returns>
+		public object Find (object pk, TableMapping map)
+		{
+			return Query (map, map.GetByPrimaryKeySql, pk).FirstOrDefault ();
+		}
+		
+		/// <summary>
+		/// Attempts to retrieve the first object that matches the predicate from the table
+		/// associated with the specified type. 
+		/// </summary>
+		/// <param name="predicate">
+		/// A predicate for which object to find.
+		/// </param>
+		/// <returns>
+		/// The object that matches the given predicate or null
+		/// if the object is not found.
+		/// </returns>
+		public T Find<T> (Expression<Func<T, bool>> predicate) where T : new()
+		{
+			return Table<T> ().Where (predicate).FirstOrDefault ();
 		}
 
 		/// <summary>
 		/// Whether <see cref="BeginTransaction"/> has been called and the database is waiting for a <see cref="Commit"/>.
 		/// </summary>
-		public bool IsInTransaction { get; private set; }
+		public bool IsInTransaction {
+			get { return _trasactionDepth > 0; }
+		}
 
 		/// <summary>
 		/// Begins a new transaction. Call <see cref="Commit"/> to end the transaction.
 		/// </summary>
+		/// <example cref="System.InvalidOperationException">Throws if a transaction has already begun.</example>
 		public void BeginTransaction ()
 		{
-			if (!IsInTransaction) {
-				Execute ("begin transaction");
-				IsInTransaction = true;
+			// The BEGIN command only works if the transaction stack is empty,
+			//    or in other words if there are no pending transactions.
+			// If the transaction stack is not empty when the BEGIN command is invoked,
+			//    then the command fails with an error.
+			// Rather than crash with an error, we will just ignore calls to BeginTransaction
+			//    that would result in an error.
+			if (Interlocked.CompareExchange (ref _trasactionDepth, 1, 0) == 0) {
+				try {
+					Execute ("begin transaction");
+				} catch (Exception ex) {
+					var sqlExp = ex as SQLiteException;
+					if (sqlExp != null) {
+						// It is recommended that applications respond to the errors listed below
+						//    by explicitly issuing a ROLLBACK command.
+						// TODO: This rollback failsafe should be localized to all throw sites.
+						switch (sqlExp.Result) {
+						case SQLite3.Result.IOError:
+						case SQLite3.Result.Full:
+						case SQLite3.Result.Busy:
+						case SQLite3.Result.NoMem:
+						case SQLite3.Result.Interrupt:
+							RollbackTo (null, true);
+							break;
+						}
+					} else {
+						// Call decrement and not VolatileWrite in case we've already
+						//    created a transaction point in SaveTransactionPoint since the catch.
+						Interlocked.Decrement (ref _trasactionDepth);
+					}
+
+					throw;
+				}
+			} else {
+				// Calling BeginTransaction on an already open transaction is invalid
+				throw new System.InvalidOperationException ("Cannot begin a transaction while already in a transaction.");
 			}
+		}
+
+		/// <summary>
+		/// Creates a savepoint in the database at the current point in the transaction timeline.
+		/// Begins a new transaction if one is not in progress.
+		/// 
+		/// Call <see cref="RollbackTo"/> to undo transactions since the returned savepoint.
+		/// Call <see cref="Release"/> to commit transactions after the savepoint returned here.
+		/// Call <see cref="Commit"/> to end the transaction, committing all changes.
+		/// </summary>
+		/// <returns>A string naming the savepoint.</returns>
+		public string SaveTransactionPoint ()
+		{
+			int depth = Interlocked.Increment (ref _trasactionDepth) - 1;
+			string retVal = "S" + (short)_rand.Next (short.MaxValue) + "D" + depth;
+
+			try {
+				Execute ("savepoint " + retVal);
+			} catch (Exception ex) {
+				var sqlExp = ex as SQLiteException;
+				if (sqlExp != null) {
+					// It is recommended that applications respond to the errors listed below
+					//    by explicitly issuing a ROLLBACK command.
+					// TODO: This rollback failsafe should be localized to all throw sites.
+					switch (sqlExp.Result) {
+					case SQLite3.Result.IOError:
+					case SQLite3.Result.Full:
+					case SQLite3.Result.Busy:
+					case SQLite3.Result.NoMem:
+					case SQLite3.Result.Interrupt:
+						RollbackTo (null, true);
+						break;
+					}
+				} else {
+					Interlocked.Decrement (ref _trasactionDepth);
+				}
+
+				throw;
+			}
+
+			return retVal;
+		}
+
+		/// <summary>
+		/// Rolls back the transaction that was begun by <see cref="BeginTransaction"/> or <see cref="SaveTransactionPoint"/>.
+		/// </summary>
+		public void Rollback ()
+		{
+			RollbackTo (null, false);
+		}
+
+		/// <summary>
+		/// Rolls back the savepoint created by <see cref="BeginTransaction"/> or SaveTransactionPoint.
+		/// </summary>
+		/// <param name="savepoint">The name of the savepoint to roll back to, as returned by <see cref="SaveTransactionPoint"/>.  If savepoint is null or empty, this method is equivalent to a call to <see cref="Rollback"/></param>
+		public void RollbackTo (string savepoint)
+		{
+			RollbackTo (savepoint, false);
 		}
 
 		/// <summary>
 		/// Rolls back the transaction that was begun by <see cref="BeginTransaction"/>.
 		/// </summary>
-		public void Rollback ()
+		/// <param name="noThrow">true to avoid throwing exceptions, false otherwise</param>
+		private void RollbackTo (string savepoint, bool noThrow)
 		{
-			if (IsInTransaction) {
-				Execute ("rollback");
-				IsInTransaction = false;
+			// Rolling back without a TO clause rolls backs all transactions
+			//    and leaves the transaction stack empty.
+			try {
+				if (String.IsNullOrEmpty (savepoint)) {
+					if (Interlocked.Exchange (ref _trasactionDepth, 0) > 0) {
+						Execute ("rollback");
+					}
+				} else {
+					DoSavePointExecute (savepoint, "rollback to ");
+				}
+			} catch (SQLiteException) {
+				if (!noThrow)
+					throw;
 			}
+			// No need to rollback if there are no transactions open.
+		}
+
+		/// <summary>
+		/// Releases a savepoint returned from <see cref="SaveTransactionPoint"/>.  Releasing a savepoint
+		///    makes changes since that savepoint permanent if the savepoint began the transaction,
+		///    or otherwise the changes are permanent pending a call to <see cref="Commit"/>.
+		/// 
+		/// The RELEASE command is like a COMMIT for a SAVEPOINT.
+		/// </summary>
+		/// <param name="savepoint">The name of the savepoint to release.  The string should be the result of a call to <see cref="SaveTransactionPoint"/></param>
+		public void Release (string savepoint)
+		{
+			DoSavePointExecute (savepoint, "release ");
+		}
+
+		private void DoSavePointExecute (string savepoint, string cmd)
+		{
+			// Validate the savepoint
+			int firstLen = savepoint.IndexOf ('D');
+			if (firstLen >= 2 && savepoint.Length > firstLen + 1) {
+				int depth;
+				if (Int32.TryParse (savepoint.Substring (firstLen + 1), out depth)) {
+					// TODO: Mild race here, but inescapable without locking almost everywhere.
+					if (0 <= depth && depth < _trasactionDepth) {
+#if NETFX_CORE
+                        Volatile.Write (ref _trasactionDepth, depth);
+#elif SILVERLIGHT
+						_trasactionDepth = depth;
+#else
+                        Thread.VolatileWrite (ref _trasactionDepth, depth);
+#endif
+                        Execute (cmd + savepoint);
+						return;
+					}
+				}
+			}
+
+			throw new ArgumentException ("savePoint", "savePoint is not valid, and should be the result of a call to SaveTransactionPoint.");
 		}
 
 		/// <summary>
@@ -602,30 +871,28 @@ namespace MonoTouch.SQLite
 		/// </summary>
 		public void Commit ()
 		{
-			if (IsInTransaction) {
+			if (Interlocked.Exchange (ref _trasactionDepth, 0) != 0) {
 				Execute ("commit");
-				IsInTransaction = false;
 			}
+			// Do nothing on a commit with no open transaction
 		}
 
 		/// <summary>
-		/// Executes <param name="action"> within a transaction and automatically rollsback the transaction
-		/// if an exception occurs. The exception is rethrown.
+		/// Executes <param name="action"> within a (possibly nested) transaction by wrapping it in a SAVEPOINT. If an
+		/// exception occurs the whole transaction is rolled back, not just the current savepoint. The exception
+		/// is rethrown.
 		/// </summary>
 		/// <param name="action">
 		/// The <see cref="Action"/> to perform within a transaction. <param name="action"> can contain any number
-		/// of operations on the connection but should never call <see cref="BeginTransaction"/>,
-		/// <see cref="Rollback"/>, or <see cref="Commit"/>.
+		/// of operations on the connection but should never call <see cref="BeginTransaction"/> or
+		/// <see cref="Commit"/>.
 		/// </param>
 		public void RunInTransaction (Action action)
 		{
-			if (IsInTransaction) {
-				throw new InvalidOperationException ("The connection must not already be in a transaction when RunInTransaction is called");
-			}
 			try {
-				BeginTransaction ();
+				var savePoint = SaveTransactionPoint ();
 				action ();
-				Commit ();
+				Release (savePoint);
 			} catch (Exception) {
 				Rollback ();
 				throw;
@@ -641,14 +908,18 @@ namespace MonoTouch.SQLite
 		/// <returns>
 		/// The number of rows added to the table.
 		/// </returns>
-		public int InsertAll (System.Collections.IEnumerable objects)
+		public int InsertAll (System.Collections.IEnumerable objects, bool beginTransaction = true)
 		{
-			BeginTransaction ();
+			if (beginTransaction) {
+				BeginTransaction ();
+			}
 			var c = 0;
 			foreach (var r in objects) {
 				c += Insert (r);
 			}
-			Commit ();
+			if (beginTransaction) {
+				Commit ();
+			}
 			return c;
 		}
 
@@ -693,6 +964,9 @@ namespace MonoTouch.SQLite
 		/// <param name="extra">
 		/// Literal SQL code that gets placed into the command. INSERT {extra} INTO ...
 		/// </param>
+		/// <param name="objType">
+		/// The type of object to insert.
+		/// </param>
 		/// <returns>
 		/// The number of rows added to the table.
 		/// </returns>
@@ -701,23 +975,23 @@ namespace MonoTouch.SQLite
 			if (obj == null || objType == null) {
 				return 0;
 			}
-			
+
 			var map = GetMapping (objType);
-			
+
 			var cols = map.InsertColumns;
 			var vals = new object[cols.Length];
 			for (var i = 0; i < vals.Length; i++) {
 				vals [i] = cols [i].GetValue (obj);
 			}
-			
+
 			var insertCmd = map.GetInsertCommand (this, extra);
 			var count = insertCmd.ExecuteNonQuery (vals);
-			
+
 			if (map.HasAutoIncPK) {
 				var id = SQLite3.LastInsertRowid (Handle);
 				map.SetAutoIncPK (obj, id);
 			}
-			
+
 			return count;
 		}
 
@@ -769,24 +1043,76 @@ namespace MonoTouch.SQLite
 		/// <summary>
 		/// Deletes the given object from the database using its primary key.
 		/// </summary>
-		/// <param name="obj">
+		/// <param name="objectToDelete">
 		/// The object to delete. It must have a primary key designated using the PrimaryKeyAttribute.
 		/// </param>
 		/// <returns>
 		/// The number of rows deleted.
 		/// </returns>
-		public int Delete<T> (T obj)
+		public int Delete (object objectToDelete)
 		{
-			var map = GetMapping (obj.GetType ());
+			var map = GetMapping (objectToDelete.GetType ());
 			var pk = map.PK;
 			if (pk == null) {
 				throw new NotSupportedException ("Cannot delete " + map.TableName + ": it has no PK");
 			}
 			var q = string.Format ("delete from \"{0}\" where \"{1}\" = ?", map.TableName, pk.Name);
-			return Execute (q, pk.GetValue (obj));
+			return Execute (q, pk.GetValue (objectToDelete));
+		}
+
+		/// <summary>
+		/// Deletes the object with the specified primary key.
+		/// </summary>
+		/// <param name="primaryKey">
+		/// The primary key of the object to delete.
+		/// </param>
+		/// <returns>
+		/// The number of objects deleted.
+		/// </returns>
+		/// <typeparam name='T'>
+		/// The type of object.
+		/// </typeparam>
+		public int Delete<T> (object primaryKey)
+		{
+			var map = GetMapping (typeof (T));
+			var pk = map.PK;
+			if (pk == null) {
+				throw new NotSupportedException ("Cannot delete " + map.TableName + ": it has no PK");
+			}
+			var q = string.Format ("delete from \"{0}\" where \"{1}\" = ?", map.TableName, pk.Name);
+			return Execute (q, primaryKey);
+		}
+
+		/// <summary>
+		/// Deletes all the objects from the specified table.
+		/// WARNING WARNING: Let me repeat. It deletes ALL the objects from the
+		/// specified table. Do you really want to do that?
+		/// </summary>
+		/// <returns>
+		/// The number of objects deleted.
+		/// </returns>
+		/// <typeparam name='T'>
+		/// The type of objects to delete.
+		/// </typeparam>
+		public int DeleteAll<T> ()
+		{
+			var map = GetMapping (typeof (T));
+			var query = string.Format("delete from \"{0}\"", map.TableName);
+			return Execute (query);
+		}
+
+		~SQLiteConnection ()
+		{
+			Dispose (false);
 		}
 
 		public void Dispose ()
+		{
+			Dispose (true);
+			GC.SuppressFinalize (this);
+		}
+
+		protected virtual void Dispose (bool disposing)
 		{
 			Close ();
 		}
@@ -795,13 +1121,15 @@ namespace MonoTouch.SQLite
 		{
 			if (_open && Handle != NullHandle) {
 				try {
-					foreach (var sqlInsertCommand in _mappings.Values) {
-						sqlInsertCommand.Dispose();
+					if (_mappings != null) {
+						foreach (var sqlInsertCommand in _mappings.Values) {
+							sqlInsertCommand.Dispose();
+						}
 					}
-					var r = SQLite3.Close(Handle);
+					var r = SQLite3.Close (Handle);
 					if (r != SQLite3.Result.OK) {
-						string msg = SQLite3.GetErrmsg(Handle);
-						throw SQLiteException.New(r, msg);
+						string msg = SQLite3.GetErrmsg (Handle);
+						throw SQLiteException.New (r, msg);
 					}
 				}
 				finally {
@@ -812,14 +1140,65 @@ namespace MonoTouch.SQLite
 		}
 	}
 
+	/// <summary>
+	/// Represents a parsed connection string.
+	/// </summary>
+	class SQLiteConnectionString
+	{
+		public string ConnectionString { get; private set; }
+		public string DatabasePath { get; private set; }
+		public bool StoreDateTimeAsTicks { get; private set; }
+
+#if NETFX_CORE
+		static readonly string MetroStyleDataPath = Windows.Storage.ApplicationData.Current.LocalFolder.Path;
+#endif
+
+		public SQLiteConnectionString (string databasePath, bool storeDateTimeAsTicks)
+		{
+			ConnectionString = databasePath;
+			StoreDateTimeAsTicks = storeDateTimeAsTicks;
+
+#if NETFX_CORE
+			DatabasePath = System.IO.Path.Combine (MetroStyleDataPath, databasePath);
+#else
+			DatabasePath = databasePath;
+#endif
+		}
+	}
+
+	[AttributeUsage (AttributeTargets.Class)]
+	public class TableAttribute : Attribute
+	{
+		public string Name { get; set; }
+
+		public TableAttribute (string name)
+		{
+			Name = name;
+		}
+	}
+
+	[AttributeUsage (AttributeTargets.Property)]
+	public class ColumnAttribute : Attribute
+	{
+		public string Name { get; set; }
+
+		public ColumnAttribute (string name)
+		{
+			Name = name;
+		}
+	}
+
+	[AttributeUsage (AttributeTargets.Property)]
 	public class PrimaryKeyAttribute : Attribute
 	{
 	}
 
+	[AttributeUsage (AttributeTargets.Property)]
 	public class AutoIncrementAttribute : Attribute
 	{
 	}
 
+	[AttributeUsage (AttributeTargets.Property)]
 	public class IndexedAttribute : Attribute
 	{
 		public string Name { get; set; }
@@ -837,10 +1216,12 @@ namespace MonoTouch.SQLite
 		}
 	}
 
+	[AttributeUsage (AttributeTargets.Property)]
 	public class IgnoreAttribute : Attribute
 	{
 	}
 
+	[AttributeUsage (AttributeTargets.Property)]
 	public class UniqueAttribute : IndexedAttribute
 	{
 		public override bool Unique {
@@ -849,6 +1230,7 @@ namespace MonoTouch.SQLite
 		}
 	}
 
+	[AttributeUsage (AttributeTargets.Property)]
 	public class MaxLengthAttribute : Attribute
 	{
 		public int Value { get; private set; }
@@ -859,6 +1241,7 @@ namespace MonoTouch.SQLite
 		}
 	}
 
+	[AttributeUsage (AttributeTargets.Property)]
 	public class CollationAttribute: Attribute
 	{
 		public string Value { get; private set; }
@@ -879,13 +1262,24 @@ namespace MonoTouch.SQLite
 
 		public Column PK { get; private set; }
 
+		public string GetByPrimaryKeySql { get; private set; }
+
 		Column _autoPk = null;
 		Column[] _insertColumns = null;
 
 		public TableMapping (Type type)
 		{
 			MappedType = type;
-			TableName = MappedType.Name;
+
+#if NETFX_CORE
+			var tableAttr = (TableAttribute)System.Reflection.CustomAttributeExtensions
+				.GetCustomAttribute(type.GetTypeInfo(), typeof(TableAttribute), true);
+#else
+			var tableAttr = (TableAttribute)type.GetCustomAttributes (typeof (TableAttribute), true).FirstOrDefault ();
+#endif
+
+			TableName = tableAttr != null ? tableAttr.Name : MappedType.Name;
+
 #if !NETFX_CORE
 			var props = MappedType.GetProperties (BindingFlags.Public | BindingFlags.Instance | BindingFlags.SetProperty);
 #else
@@ -901,7 +1295,7 @@ namespace MonoTouch.SQLite
 				var ignore = p.GetCustomAttributes (typeof(IgnoreAttribute), true).Count() > 0;
 #endif
 				if (p.CanWrite && !ignore) {
-					cols.Add (new PropColumn (p));
+					cols.Add (new Column (p));
 				}
 			}
 			Columns = cols.ToArray ();
@@ -915,6 +1309,14 @@ namespace MonoTouch.SQLite
 			}
 			
 			HasAutoIncPK = _autoPk != null;
+
+			if (PK != null) {
+				GetByPrimaryKeySql = string.Format ("select * from \"{0}\" where \"{1}\" = ?", TableName, PK.Name);
+			}
+			else {
+				// People should not be calling Get/Find without a PK
+				GetByPrimaryKeySql = string.Format ("select * from \"{0}\" limit 1", TableName);
+			}
 		}
 
 		public bool HasAutoIncPK { get; private set; }
@@ -935,12 +1337,17 @@ namespace MonoTouch.SQLite
 			}
 		}
 
-		public Column FindColumn (string name)
+		public Column FindColumnWithPropertyName (string propertyName)
 		{
-			var exact = Columns.Where (c => c.Name == name).FirstOrDefault ();
+			var exact = Columns.Where (c => c.PropertyName == propertyName).FirstOrDefault ();
 			return exact;
 		}
 
+		public Column FindColumn (string columnName)
+		{
+			var exact = Columns.Where (c => c.Name == columnName).FirstOrDefault ();
+			return exact;
+		}
 		
 		PreparedSqlLiteInsertCommand _insertCommand;
 		string _insertCommandExtra = null;
@@ -962,11 +1369,19 @@ namespace MonoTouch.SQLite
 		private PreparedSqlLiteInsertCommand CreateInsertCommand(SQLiteConnection conn, string extra)
 		{
 			var cols = InsertColumns;
-			var insertSql = string.Format ("insert {3} into \"{0}\"({1}) values ({2})", TableName, 
-						       string.Join (",", (from c in cols
-									  select "\"" + c.Name + "\"").ToArray ()), 
-						       string.Join (",", (from c in cols
-									  select "?").ToArray ()), extra);
+			string insertSql;
+			if (!cols.Any() && Columns.Count() == 1 && Columns[0].IsAutoInc)
+			{
+				insertSql = string.Format("insert {1} into \"{0}\" default values", TableName, extra);
+			}
+			else
+			{
+				insertSql = string.Format("insert {3} into \"{0}\"({1}) values ({2})", TableName,
+				                          string.Join(",", (from c in cols
+				                                            select "\"" + c.Name + "\"").ToArray()),
+				                          string.Join(",", (from c in cols
+				                                            select "?").ToArray()), extra);
+			}
 			
 			var insertCommand = new PreparedSqlLiteInsertCommand(conn);
 			insertCommand.CommandText = insertSql;
@@ -981,37 +1396,34 @@ namespace MonoTouch.SQLite
 			}
 		}
 
-		public abstract class Column
-		{
-			public string Name { get; internal set; }
-
-			public Type ColumnType { get; protected set; }
-
-			public string Collation { get; protected set; }
-
-			public bool IsAutoInc { get; protected set; }
-
-			public bool IsPK { get; protected set; }
-
-			public IEnumerable<IndexedAttribute> Indices { get; set; }
-
-			public bool IsNullable { get; protected set; }
-
-			public int MaxStringLength { get; protected set; }
-
-			public abstract void SetValue (object obj, object val);
-
-			public abstract object GetValue (object obj);
-		}
-
-		public class PropColumn : Column
+		public class Column
 		{
 			PropertyInfo _prop;
 
-			public PropColumn (PropertyInfo prop)
+			public string Name { get; internal set; }
+
+			public string PropertyName { get { return _prop.Name; } }
+
+			public Type ColumnType { get; private set; }
+
+			public string Collation { get; private set; }
+
+			public bool IsAutoInc { get; private set; }
+
+			public bool IsPK { get; private set; }
+
+			public IEnumerable<IndexedAttribute> Indices { get; set; }
+
+			public bool IsNullable { get; private set; }
+
+			public int MaxStringLength { get; private set; }
+
+			public Column (PropertyInfo prop)
 			{
+				var colAttr = (ColumnAttribute)prop.GetCustomAttributes (typeof(ColumnAttribute), true).FirstOrDefault ();
+
 				_prop = prop;
-				Name = prop.Name;
+				Name = colAttr == null ? prop.Name : colAttr.Name;
 				//If this type is Nullable<T> then Nullable.GetUnderlyingType returns the T, otherwise it returns null, so get the the actual type instead
 				ColumnType = Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType;
 				Collation = Orm.Collation (prop);
@@ -1022,12 +1434,12 @@ namespace MonoTouch.SQLite
 				MaxStringLength = Orm.MaxStringLength (prop);
 			}
 
-			public override void SetValue (object obj, object val)
+			public void SetValue (object obj, object val)
 			{
 				_prop.SetValue (obj, val, null);
 			}
 
-			public override object GetValue (object obj)
+			public object GetValue (object obj)
 			{
 				return _prop.GetValue (obj, null);
 			}
@@ -1038,9 +1450,9 @@ namespace MonoTouch.SQLite
 	{
 		public const int DefaultMaxStringLength = 140;
 
-		public static string SqlDecl (TableMapping.Column p)
+		public static string SqlDecl (TableMapping.Column p, bool storeDateTimeAsTicks)
 		{
-			string decl = "\"" + p.Name + "\" " + SqlType (p) + " ";
+			string decl = "\"" + p.Name + "\" " + SqlType (p, storeDateTimeAsTicks) + " ";
 			
 			if (p.IsPK) {
 				decl += "primary key ";
@@ -1058,7 +1470,7 @@ namespace MonoTouch.SQLite
 			return decl;
 		}
 
-		public static string SqlType (TableMapping.Column p)
+		public static string SqlType (TableMapping.Column p, bool storeDateTimeAsTicks)
 		{
 			var clrType = p.ColumnType;
 			if (clrType == typeof(Boolean) || clrType == typeof(Byte) || clrType == typeof(UInt16) || clrType == typeof(SByte) || clrType == typeof(Int16) || clrType == typeof(Int32)) {
@@ -1071,7 +1483,7 @@ namespace MonoTouch.SQLite
 				int len = p.MaxStringLength;
 				return "varchar(" + len + ")";
 			} else if (clrType == typeof(DateTime)) {
-				return "datetime";
+				return storeDateTimeAsTicks ? "bigint" : "datetime";
 #if !NETFX_CORE
 			} else if (clrType.IsEnum) {
 #else
@@ -1080,6 +1492,10 @@ namespace MonoTouch.SQLite
 				return "integer";
 			} else if (clrType == typeof(byte[])) {
 				return "blob";
+#if SQLITE_SUPPORT_GUID
+			} else if (clrType == typeof(Guid)) {
+				return "varchar(36)";
+#endif
 			} else {
 				throw new NotSupportedException ("Don't know about " + clrType);
 			}
@@ -1099,15 +1515,14 @@ namespace MonoTouch.SQLite
 		{
 			var attrs = p.GetCustomAttributes (typeof(CollationAttribute), true);
 #if !NETFX_CORE
-			if (attrs.Length > 0) {
+			if (attrs.Length > 0)
 				return ((CollationAttribute)attrs [0]).Value;
 #else
-			if (attrs.Count() > 0) {
+			if (attrs.Count() > 0)
                 return ((CollationAttribute)attrs.First()).Value;
 #endif
-			} else {
+			else
 				return string.Empty;
-			}
 		}
 
 		public static bool IsAutoInc (MemberInfo p)
@@ -1130,15 +1545,14 @@ namespace MonoTouch.SQLite
 		{
 			var attrs = p.GetCustomAttributes (typeof(MaxLengthAttribute), true);
 #if !NETFX_CORE
-			if (attrs.Length > 0) {
+			if (attrs.Length > 0)
 				return ((MaxLengthAttribute)attrs [0]).Value;
 #else
-			if (attrs.Count() > 0) {
+			if (attrs.Count() > 0)
 				return ((MaxLengthAttribute)attrs.First()).Value;
 #endif
-			} else {
+			else
 				return DefaultMaxStringLength;
-			}
 		}
 	}
 
@@ -1177,12 +1591,12 @@ namespace MonoTouch.SQLite
 			}
 		}
 
-		public IEnumerable<T> ExecuteDeferredQuery<T> () where T : new()
+		public IEnumerable<T> ExecuteDeferredQuery<T> ()
 		{
 			return ExecuteDeferredQuery<T>(_conn.GetMapping(typeof(T)));
 		}
 
-		public List<T> ExecuteQuery<T> () where T : new()
+		public List<T> ExecuteQuery<T> ()
 		{
 			return ExecuteDeferredQuery<T>(_conn.GetMapping(typeof(T))).ToList();
 		}
@@ -1309,13 +1723,13 @@ namespace MonoTouch.SQLite
 					b.Index = nextIdx++;
 				}
 				
-				BindParameter (stmt, b.Index, b.Value);
+				BindParameter (stmt, b.Index, b.Value, _conn.StoreDateTimeAsTicks);
 			}
 		}
 
 		internal static IntPtr NegativePointer = new IntPtr (-1);
 
-		internal static void BindParameter (Sqlite3Statement stmt, int index, object value)
+		internal static void BindParameter (Sqlite3Statement stmt, int index, object value, bool storeDateTimeAsTicks)
 		{
 			if (value == null) {
 				SQLite3.BindNull (stmt, index);
@@ -1333,18 +1747,27 @@ namespace MonoTouch.SQLite
 				} else if (value is Single || value is Double || value is Decimal) {
 					SQLite3.BindDouble (stmt, index, Convert.ToDouble (value));
 				} else if (value is DateTime) {
-					SQLite3.BindText (stmt, index, ((DateTime)value).ToString ("yyyy-MM-dd HH:mm:ss"), -1, NegativePointer);
+					if (storeDateTimeAsTicks) {
+						SQLite3.BindInt64 (stmt, index, ((DateTime)value).Ticks);
+					}
+					else {
+						SQLite3.BindText (stmt, index, ((DateTime)value).ToString ("yyyy-MM-dd HH:mm:ss"), -1, NegativePointer);
+					}
 #if !NETFX_CORE
 				} else if (value.GetType().IsEnum) {
 #else
 				} else if (value.GetType().GetTypeInfo().IsEnum) {
 #endif
 					SQLite3.BindInt (stmt, index, Convert.ToInt32 (value));
-				} else if (value is byte[]) {
-					SQLite3.BindBlob (stmt, index, (byte[])value, ((byte[])value).Length, NegativePointer);
-				} else {
-					throw new NotSupportedException ("Cannot store type: " + value.GetType ());
-				}
+				} else if (value is byte[]){
+					SQLite3.BindBlob(stmt, index, (byte[]) value, ((byte[]) value).Length, NegativePointer);
+#if SQLITE_SUPPORT_GUID
+				} else if (value is Guid) {
+					SQLite3.BindText(stmt, index, ((Guid)value).ToString(), 72, NegativePointer);
+#endif
+                } else {
+                    throw new NotSupportedException("Cannot store type: " + value.GetType());
+                }
 			}
 		}
 
@@ -1373,8 +1796,13 @@ namespace MonoTouch.SQLite
 				} else if (clrType == typeof(float)) {
 					return (float)SQLite3.ColumnDouble (stmt, index);
 				} else if (clrType == typeof(DateTime)) {
-					var text = SQLite3.ColumnString (stmt, index);
-					return DateTime.Parse (text);
+					if (_conn.StoreDateTimeAsTicks) {
+						return new DateTime (SQLite3.ColumnInt64 (stmt, index));
+					}
+					else {
+						var text = SQLite3.ColumnString (stmt, index);
+						return DateTime.Parse (text);
+					}
 #if !NETFX_CORE
 				} else if (clrType.IsEnum) {
 #else
@@ -1397,6 +1825,11 @@ namespace MonoTouch.SQLite
 					return (sbyte)SQLite3.ColumnInt (stmt, index);
 				} else if (clrType == typeof(byte[])) {
 					return SQLite3.ColumnByteArray (stmt, index);
+#if SQLITE_SUPPORT_GUID
+				} else if (clrType == typeof(Guid)) {
+					var text = SQLite3.ColumnString(stmt, index);
+					return new Guid(text);
+#endif
 				} else {
 					throw new NotSupportedException ("Don't know how to read " + clrType);
 				}
@@ -1443,7 +1876,7 @@ namespace MonoTouch.SQLite
 			//bind the values.
 			if (source != null) {
 				for (int i = 0; i < source.Length; i++) {
-					SQLiteCommand.BindParameter (Statement, i + 1, source [i]);
+					SQLiteCommand.BindParameter (Statement, i + 1, source [i], Connection.StoreDateTimeAsTicks);
 				}
 			}
 			r = SQLite3.Step (Statement);
@@ -1492,7 +1925,16 @@ namespace MonoTouch.SQLite
 		}
 	}
 
-	public class TableQuery<T> : IEnumerable<T> where T : new()
+	public abstract class BaseTableQuery
+	{
+		protected class Ordering
+		{
+			public string ColumnName { get; set; }
+			public bool Ascending { get; set; }
+		}
+	}
+
+	public class TableQuery<T> : BaseTableQuery, IEnumerable<T>
 	{
 		public SQLiteConnection Connection { get; private set; }
 
@@ -1503,12 +1945,13 @@ namespace MonoTouch.SQLite
 		int? _limit;
 		int? _offset;
 
-		class Ordering
-		{
-			public string ColumnName { get; set; }
+		BaseTableQuery _joinInner;
+		Expression _joinInnerKeySelector;
+		BaseTableQuery _joinOuter;
+		Expression _joinOuterKeySelector;
+		Expression _joinSelector;
 
-			public bool Ascending { get; set; }
-		}
+		Expression _selector;
 
 		TableQuery (SQLiteConnection conn, TableMapping table)
 		{
@@ -1522,9 +1965,9 @@ namespace MonoTouch.SQLite
 			Table = Connection.GetMapping (typeof(T));
 		}
 
-		public TableQuery<T> Clone ()
+		public TableQuery<U> Clone<U> ()
 		{
-			var q = new TableQuery<T> (Connection, Table);
+			var q = new TableQuery<U> (Connection, Table);
 			q._where = _where;
 			q._deferred = _deferred;
 			if (_orderBys != null) {
@@ -1532,6 +1975,12 @@ namespace MonoTouch.SQLite
 			}
 			q._limit = _limit;
 			q._offset = _offset;
+			q._joinInner = _joinInner;
+			q._joinInnerKeySelector = _joinInnerKeySelector;
+			q._joinOuter = _joinOuter;
+			q._joinOuterKeySelector = _joinOuterKeySelector;
+			q._joinSelector = _joinSelector;
+			q._selector = _selector;
 			return q;
 		}
 
@@ -1540,7 +1989,7 @@ namespace MonoTouch.SQLite
 			if (predExpr.NodeType == ExpressionType.Lambda) {
 				var lambda = (LambdaExpression)predExpr;
 				var pred = lambda.Body;
-				var q = Clone ();
+				var q = Clone<T> ();
 				q.AddWhere (pred);
 				return q;
 			} else {
@@ -1550,22 +1999,27 @@ namespace MonoTouch.SQLite
 
 		public TableQuery<T> Take (int n)
 		{
-			var q = Clone ();
+			var q = Clone<T> ();
 			q._limit = n;
 			return q;
 		}
 
 		public TableQuery<T> Skip (int n)
 		{
-			var q = Clone ();
+			var q = Clone<T> ();
 			q._offset = n;
 			return q;
+		}
+
+		public T ElementAt (int index)
+		{
+			return Skip (index).Take (1).First ();
 		}
 
 		bool _deferred = false;
 		public TableQuery<T> Deferred ()
 		{
-			var q = Clone();
+			var q = Clone<T> ();
 			q._deferred = true;
 			return q;
 		}
@@ -1586,12 +2040,12 @@ namespace MonoTouch.SQLite
 				var lambda = (LambdaExpression)orderExpr;
 				var mem = lambda.Body as MemberExpression;
 				if (mem != null && (mem.Expression.NodeType == ExpressionType.Parameter)) {
-					var q = Clone ();
+					var q = Clone<T> ();
 					if (q._orderBys == null) {
 						q._orderBys = new List<Ordering> ();
 					}
 					q._orderBys.Add (new Ordering {
-						ColumnName = mem.Member.Name,
+						ColumnName = Table.FindColumnWithPropertyName(mem.Member.Name).Name,
 						Ascending = asc
 					});
 					return q;
@@ -1612,28 +2066,56 @@ namespace MonoTouch.SQLite
 			}
 		}
 
+		public TableQuery<TResult> Join<TInner, TKey, TResult> (
+			TableQuery<TInner> inner,
+			Expression<Func<T, TKey>> outerKeySelector,
+			Expression<Func<TInner, TKey>> innerKeySelector,
+			Expression<Func<T, TInner, TResult>> resultSelector)
+		{
+			var q = new TableQuery<TResult> (Connection, Connection.GetMapping (typeof (TResult))) {
+				_joinOuter = this,
+				_joinOuterKeySelector = outerKeySelector,
+				_joinInner = inner,
+				_joinInnerKeySelector = innerKeySelector,
+				_joinSelector = resultSelector,
+			};
+			return q;
+		}
+
+		public TableQuery<TResult> Select<TResult> (Expression<Func<T, TResult>> selector)
+		{
+			var q = Clone<TResult> ();
+			q._selector = selector;
+			return q;
+		}
+
 		private SQLiteCommand GenerateCommand (string selectionList)
 		{
-			var cmdText = "select " + selectionList + " from \"" + Table.TableName + "\"";
-			var args = new List<object> ();
-			if (_where != null) {
-				var w = CompileExpr (_where, args);
-				cmdText += " where " + w.CommandText;
+			if (_joinInner != null && _joinOuter != null) {
+				throw new NotSupportedException ("Joins are not supported.");
 			}
-			if ((_orderBys != null) && (_orderBys.Count > 0)) {
-				var t = string.Join (", ", _orderBys.Select (o => "\"" + o.ColumnName + "\"" + (o.Ascending ? "" : " desc")).ToArray ());
-				cmdText += " order by " + t;
-			}
-			if (_limit.HasValue) {
-				cmdText += " limit " + _limit.Value;
-			}
-			if (_offset.HasValue) {
-				if (!_limit.HasValue) {
-					cmdText += " limit -1 ";
+			else {
+				var cmdText = "select " + selectionList + " from \"" + Table.TableName + "\"";
+				var args = new List<object> ();
+				if (_where != null) {
+					var w = CompileExpr (_where, args);
+					cmdText += " where " + w.CommandText;
 				}
-				cmdText += " offset " + _offset.Value;
+				if ((_orderBys != null) && (_orderBys.Count > 0)) {
+					var t = string.Join (", ", _orderBys.Select (o => "\"" + o.ColumnName + "\"" + (o.Ascending ? "" : " desc")).ToArray ());
+					cmdText += " order by " + t;
+				}
+				if (_limit.HasValue) {
+					cmdText += " limit " + _limit.Value;
+				}
+				if (_offset.HasValue) {
+					if (!_limit.HasValue) {
+						cmdText += " limit -1 ";
+					}
+					cmdText += " offset " + _offset.Value;
+				}
+				return Connection.CreateCommand (cmdText, args.ToArray ());
 			}
-			return Connection.CreateCommand (cmdText, args.ToArray ());
 		}
 
 		class CompileResult
@@ -1666,6 +2148,7 @@ namespace MonoTouch.SQLite
 				
 				var call = (MethodCallExpression)expr;
 				var args = new CompileResult[call.Arguments.Count];
+				var obj = call.Object != null ? CompileExpr (call.Object, queryArgs) : null;
 				
 				for (var i = 0; i < args.Length; i++) {
 					args [i] = CompileExpr (call.Arguments [i], queryArgs);
@@ -1675,9 +2158,25 @@ namespace MonoTouch.SQLite
 				
 				if (call.Method.Name == "Like" && args.Length == 2) {
 					sqlCall = "(" + args [0].CommandText + " like " + args [1].CommandText + ")";
-				} else if (call.Method.Name == "Contains" && args.Length == 2) {
+				}
+				else if (call.Method.Name == "Contains" && args.Length == 2) {
 					sqlCall = "(" + args [1].CommandText + " in " + args [0].CommandText + ")";
-				} else {
+				}
+				else if (call.Method.Name == "Contains" && args.Length == 1) {
+					if (call.Object != null && call.Object.Type == typeof(string)) {
+						sqlCall = "(" + obj.CommandText + " like ('%' || " + args [0].CommandText + " || '%'))";
+					}
+					else {
+						sqlCall = "(" + args [0].CommandText + " in " + obj.CommandText + ")";
+					}
+				}
+				else if (call.Method.Name == "StartsWith" && args.Length == 1) {
+					sqlCall = "(" + obj.CommandText + " like (" + args [0].CommandText + " || '%'))";
+				}
+				else if (call.Method.Name == "EndsWith" && args.Length == 1) {
+					sqlCall = "(" + obj.CommandText + " like ('%' || " + args [0].CommandText + "))";
+				}
+				else {
 					sqlCall = call.Method.Name.ToLower () + "(" + string.Join (",", args.Select (a => a.CommandText).ToArray ()) + ")";
 				}
 				return new CompileResult { CommandText = sqlCall };
@@ -1703,8 +2202,10 @@ namespace MonoTouch.SQLite
 				if (mem.Expression.NodeType == ExpressionType.Parameter) {
 					//
 					// This is a column of our table, output just the column name
+					// Need to translate it if that column name is mapped
 					//
-					return new CompileResult { CommandText = "\"" + mem.Member.Name + "\"" };
+					var columnName = Table.FindColumnWithPropertyName (mem.Member.Name).Name;
+					return new CompileResult { CommandText = "\"" + columnName + "\"" };
 				} else {
 					object obj = null;
 					if (mem.Expression != null) {
@@ -1742,7 +2243,11 @@ namespace MonoTouch.SQLite
 						val = m.GetValue (obj);
 #endif
 					} else {
+#if !NETFX_CORE
 						throw new NotSupportedException ("MemberExpr: " + mem.Member.MemberType.ToString ());
+#else
+						throw new NotSupportedException ("MemberExpr: " + mem.Member.DeclaringType.ToString ());
+#endif
 					}
 					
 					//
@@ -1834,6 +2339,18 @@ namespace MonoTouch.SQLite
 		{
 			return GetEnumerator ();
 		}
+		
+		public T First ()
+		{
+			var query = Take (1);
+			return query.ToList<T>().First ();
+		}
+
+		public T FirstOrDefault ()
+		{
+			var query = this.Take (1);
+			return query.ToList<T>().FirstOrDefault ();
+		}
 	}
 
 	public static class SQLite3
@@ -1853,8 +2370,20 @@ namespace MonoTouch.SQLite
 			IOError = 10,
 			Corrupt = 11,
 			NotFound = 12,
+			Full = 13,
+			CannotOpen = 14,
+			LockErr = 15,
+			Empty = 16,
+			SchemaChngd = 17,
 			TooBig = 18,
 			Constraint = 19,
+			Mismatch = 20,
+			Misuse = 21,
+			NotImplementedLFS = 22,
+			AccessDenied = 23,
+			Format = 24,
+			Range = 25,
+			NonDBFile = 26,
 			Row = 100,
 			Done = 101
 		}
@@ -1868,10 +2397,16 @@ namespace MonoTouch.SQLite
 
 #if !USE_CSHARP_SQLITE
 		[DllImport("sqlite3", EntryPoint = "sqlite3_open", CallingConvention=CallingConvention.Cdecl)]
-		public static extern Result Open (string filename, out IntPtr db);
+		public static extern Result Open ([MarshalAs(UnmanagedType.LPStr)] string filename, out IntPtr db);
 
 		[DllImport("sqlite3", EntryPoint = "sqlite3_open_v2", CallingConvention=CallingConvention.Cdecl)]
-		public static extern Result Open (string filename, out IntPtr db, int flags, IntPtr zvfs);
+		public static extern Result Open ([MarshalAs(UnmanagedType.LPStr)] string filename, out IntPtr db, int flags, IntPtr zvfs);
+		
+		[DllImport("sqlite3", EntryPoint = "sqlite3_open_v2", CallingConvention = CallingConvention.Cdecl)]
+		public static extern Result Open(byte[] filename, out IntPtr db, int flags, IntPtr zvfs);
+
+		[DllImport("sqlite3", EntryPoint = "sqlite3_open16", CallingConvention = CallingConvention.Cdecl)]
+		public static extern Result Open16([MarshalAs(UnmanagedType.LPWStr)] string filename, out IntPtr db);
 
 		[DllImport("sqlite3", EntryPoint = "sqlite3_close", CallingConvention=CallingConvention.Cdecl)]
 		public static extern Result Close (IntPtr db);
@@ -1886,7 +2421,7 @@ namespace MonoTouch.SQLite
 		public static extern int Changes (IntPtr db);
 
 		[DllImport("sqlite3", EntryPoint = "sqlite3_prepare_v2", CallingConvention=CallingConvention.Cdecl)]
-		public static extern Result Prepare2 (IntPtr db, string sql, int numBytes, out IntPtr stmt, IntPtr pzTail);
+		public static extern Result Prepare2 (IntPtr db, [MarshalAs(UnmanagedType.LPStr)] string sql, int numBytes, out IntPtr stmt, IntPtr pzTail);
 
 		public static IntPtr Prepare2 (IntPtr db, string query)
 		{
@@ -1919,7 +2454,7 @@ namespace MonoTouch.SQLite
 		}
 
 		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_parameter_index", CallingConvention=CallingConvention.Cdecl)]
-		public static extern int BindParameterIndex (IntPtr stmt, string name);
+		public static extern int BindParameterIndex (IntPtr stmt, [MarshalAs(UnmanagedType.LPStr)] string name);
 
 		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_null", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int BindNull (IntPtr stmt, int index);
@@ -1934,7 +2469,7 @@ namespace MonoTouch.SQLite
 		public static extern int BindDouble (IntPtr stmt, int index, double val);
 
 		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_text16", CallingConvention=CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
-		public static extern int BindText (IntPtr stmt, int index, string val, int n, IntPtr free);
+		public static extern int BindText (IntPtr stmt, int index, [MarshalAs(UnmanagedType.LPWStr)] string val, int n, IntPtr free);
 
 		[DllImport("sqlite3", EntryPoint = "sqlite3_bind_blob", CallingConvention=CallingConvention.Cdecl)]
 		public static extern int BindBlob (IntPtr stmt, int index, byte[] val, int n, IntPtr free);
@@ -1992,8 +2527,12 @@ namespace MonoTouch.SQLite
 #else
 		public static Result Open(string filename, out Sqlite3.sqlite3 db)
 		{
-			db = new Sqlite3.sqlite3();
-			return (Result)Sqlite3.sqlite3_open(filename, ref db);
+			return (Result) Sqlite3.sqlite3_open(filename, out db);
+		}
+
+		public static Result Open(string filename, out Sqlite3.sqlite3 db, int flags, IntPtr zVfs)
+		{
+			return (Result)Sqlite3.sqlite3_open_v2(filename, out db, flags, null);
 		}
 
 		public static Result Close(Sqlite3.sqlite3 db)
@@ -2034,7 +2573,7 @@ namespace MonoTouch.SQLite
 
 		public static Result Finalize(Sqlite3.Vdbe stmt)
 		{
-			return (Result)Sqlite3.sqlite3_finalize(ref stmt);
+			return (Result)Sqlite3.sqlite3_finalize(stmt);
 		}
 
 		public static long LastInsertRowid(Sqlite3.sqlite3 db)
@@ -2157,5 +2696,4 @@ namespace MonoTouch.SQLite
 			Null = 5
 		}
 	}
-	
 }
