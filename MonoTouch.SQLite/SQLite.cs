@@ -421,7 +421,7 @@ namespace MonoTouch.SQLite
 		/// <returns>
 		/// A <see cref="SQLiteCommand"/>
 		/// </returns>
-		public SQLiteCommand CreateCommand (string cmdText, object[] args)
+		public SQLiteCommand CreateCommand (string cmdText, params object[] args)
 		{
 			if (!_open) {
 				throw SQLiteException.New (SQLite3.Result.Error, "Cannot create commands from unopened database");
