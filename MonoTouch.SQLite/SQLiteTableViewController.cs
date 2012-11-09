@@ -183,18 +183,12 @@ namespace MonoTouch.SQLite
 			
 			if (SearchModel == null)
 				SearchModel = CreateModel (true);
-			
-			SearchDisplayController.SearchResultsTableView.AllowsMultipleSelectionDuringEditing = false;
-			SearchDisplayController.SearchResultsTableView.AllowsSelectionDuringEditing = false;
-			SearchDisplayController.SearchResultsTableView.AllowsMultipleSelection = false;
-			SearchDisplayController.SearchResultsTableView.AllowsSelection = true;
+
 			SearchDisplayController.SearchResultsTableView.SectionFooterHeight = 0;
-			
-			TableView.AllowsMultipleSelectionDuringEditing = false;
-			TableView.AllowsSelectionDuringEditing = false;
-			TableView.AllowsMultipleSelection = false;
-			TableView.AllowsSelection = true;
+			SearchDisplayController.SearchResultsTableView.AllowsSelection = true;
+
 			TableView.SectionFooterHeight = 0;
+			TableView.AllowsSelection = true;
 		}
 		
 		/// <summary>
