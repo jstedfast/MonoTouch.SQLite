@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleDisplayName</key>
-	<string>MonoTouch.SQLite Sample</string>
+	<string>MT.SQLite</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.xamarin.samples.monotouch.sqlite</string>
 	<key>CFBundleVersion</key>
