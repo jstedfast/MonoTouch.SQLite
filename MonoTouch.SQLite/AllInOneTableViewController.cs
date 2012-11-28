@@ -142,15 +142,15 @@ namespace MonoTouch.SQLite {
 			//	return controller.GetHeightForRow (tableView, indexPath);
 			//}
 			
-			public override float GetHeightForHeader (UITableView tableView, int section)
-			{
-				return controller.GetHeightForHeader (tableView, section);
-			}
+			//public override float GetHeightForHeader (UITableView tableView, int section)
+			//{
+			//	return controller.GetHeightForHeader (tableView, section);
+			//}
 			
-			public override float GetHeightForFooter (UITableView tableView, int section)
-			{
-				return controller.GetHeightForFooter (tableView, section);
-			}
+			//public override float GetHeightForFooter (UITableView tableView, int section)
+			//{
+			//	return controller.GetHeightForFooter (tableView, section);
+			//}
 			
 			public override NSIndexPath WillSelectRow (UITableView tableView, NSIndexPath indexPath)
 			{
@@ -255,24 +255,35 @@ namespace MonoTouch.SQLite {
 		AllInOneTableViewDataSource tableViewDataSource;
 		AllInOneTableViewDelegate tableViewDelegate;
 		bool searchLoaded = false;
+		bool canSearch = false;
 		UISearchBar searchBar;
 		float rowHeight = -1;
 		bool loaded = false;
 		
-		public AllInOneTableViewController (UITableViewStyle style) : base (style)
+		public AllInOneTableViewController (UITableViewStyle style, bool canSearch) : base (style)
 		{
-			searchDisplayDelegate = new AllInOneSearchDisplayDelegate (this);
 			tableViewDataSource = new AllInOneTableViewDataSource (this);
 			tableViewDelegate = new AllInOneTableViewDelegate (this);
 			ClearsSelectionOnViewWillAppear = false;
+			CanSearch = canSearch;
+		}
+
+		public AllInOneTableViewController (UITableViewStyle style) : this (style, true)
+		{
 		}
 		
 		public bool AutoHideSearch {
 			get; set;
 		}
-		
-		public bool AutoRotate {
-			get; set;
+
+		public bool CanSearch {
+			get { return canSearch; }
+			set {
+				if (loaded)
+					throw new InvalidOperationException ("Cannot change the CanSearch property after the AllInOneTableViewController has been loaded.");
+
+				canSearch = value;
+			}
 		}
 		
 		public override bool ClearsSelectionOnViewWillAppear {
@@ -311,16 +322,21 @@ namespace MonoTouch.SQLite {
 		public override void ViewDidLoad ()
 		{
 			base.ViewDidLoad ();
+
+			if (CanSearch) {
+				searchBar = CreateSearchBar ();
+				if (SearchPlaceholder != null)
+					searchBar.Placeholder = SearchPlaceholder;
+
+				searchDisplayController = new UISearchDisplayController (searchBar, this);
+				searchDisplayDelegate = new AllInOneSearchDisplayDelegate (this);
+
+				SearchDisplayController.SearchResultsDataSource = tableViewDataSource;
+				SearchDisplayController.SearchResultsDelegate = tableViewDelegate;
+				SearchDisplayController.Delegate = searchDisplayDelegate;
 			
-			searchBar = CreateSearchBar ();
-			if (SearchPlaceholder != null)
-				searchBar.Placeholder = SearchPlaceholder;
-			
-			searchDisplayController = new UISearchDisplayController (searchBar, this);
-			SearchDisplayController.SearchResultsDataSource = tableViewDataSource;
-			SearchDisplayController.SearchResultsDelegate = tableViewDelegate;
-			SearchDisplayController.Delegate = searchDisplayDelegate;
-			TableView.TableHeaderView = searchBar;
+				TableView.TableHeaderView = searchBar;
+			}
 			
 			TableView.AutoresizingMask = UIViewAutoresizing.FlexibleHeight | UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleTopMargin;
 			TableView.AutosizesSubviews = true;
@@ -334,42 +350,9 @@ namespace MonoTouch.SQLite {
 			loaded = true;
 		}
 		
-		public override void ViewDidUnload ()
-		{
-			base.ViewDidUnload ();
-			
-			if (searchDisplayController != null) {
-				searchDisplayController.Dispose ();
-				searchDisplayController = null;
-			}
-			
-			if (searchDisplayDelegate != null) {
-				searchDisplayDelegate.Dispose ();
-				searchDisplayDelegate = null;
-			}
-			
-			if (tableViewDataSource != null) {
-				tableViewDataSource.Dispose ();
-				tableViewDataSource = null;
-			}
-			
-			if (tableViewDelegate != null) {
-				tableViewDelegate.Dispose ();
-				tableViewDelegate = null;
-			}
-			
-			if (searchBar != null) {
-				searchBar.Dispose ();
-				searchBar = null;
-			}
-
-			searchLoaded = false;
-			loaded = false;
-		}
-		
 		public void HideSearchBar ()
 		{
-			if (TableView != null && TableView.ContentOffset.Y < searchBar.Frame.Height)
+			if (CanSearch && TableView != null && TableView.ContentOffset.Y < searchBar.Frame.Height)
 				TableView.ContentOffset = new PointF (0, searchBar.Frame.Height);
 		}
 		
@@ -379,16 +362,6 @@ namespace MonoTouch.SQLite {
 			
 			if (AutoHideSearch)
 				HideSearchBar ();
-		}
-		
-		public override bool ShouldAutorotateToInterfaceOrientation (UIInterfaceOrientation toInterfaceOrientation)
-		{
-			return AutoRotate;
-		}
-		
-		public override void DidRotate (UIInterfaceOrientation fromInterfaceOrientation)
-		{
-			base.DidRotate (fromInterfaceOrientation);
 		}
 		
 		#region UITableVIewDataSource
@@ -472,15 +445,15 @@ namespace MonoTouch.SQLite {
 		//	return tableView.RowHeight;
 		//}
 		
-		protected virtual float GetHeightForHeader (UITableView tableView, int section)
-		{
-			return tableView.SectionHeaderHeight;
-		}
+		//protected virtual float GetHeightForHeader (UITableView tableView, int section)
+		//{
+		//	return tableView.SectionHeaderHeight;
+		//}
 		
-		protected virtual float GetHeightForFooter (UITableView tableView, int section)
-		{
-			return tableView.SectionFooterHeight;
-		}
+		//protected virtual float GetHeightForFooter (UITableView tableView, int section)
+		//{
+		//	return tableView.SectionFooterHeight;
+		//}
 		
 		protected virtual NSIndexPath WillSelectRow (UITableView tableView, NSIndexPath indexPath)
 		{

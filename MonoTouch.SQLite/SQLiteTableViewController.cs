@@ -266,20 +266,20 @@ namespace MonoTouch.SQLite
 			return titles != null ? titles[section] : null;
 		}
 		
-		protected override float GetHeightForHeader (UITableView tableView, int section)
-		{
-			string[] titles = ModelForTableView (tableView).SectionTitles;
-			
-			if (titles == null)
-				return 0;
-			
-			return base.GetHeightForHeader (tableView, section);
-		}
+		//protected override float GetHeightForHeader (UITableView tableView, int section)
+		//{
+		//	string[] titles = ModelForTableView (tableView).SectionTitles;
+		//
+		//	if (titles == null)
+		//		return 0;
+		//
+		//	return base.GetHeightForHeader (tableView, section);
+		//}
 		
-		protected override float GetHeightForFooter (UITableView tableView, int section)
-		{
-			return 0;
-		}
+		//protected override float GetHeightForFooter (UITableView tableView, int section)
+		//{
+		//	return 0;
+		//}
 		
 		protected override int RowsInSection (UITableView tableView, int section)
 		{
