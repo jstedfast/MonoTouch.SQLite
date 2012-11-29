@@ -49,7 +49,7 @@ namespace MonoTouch.SQLite
 		/// The sub-expression used to get distinct sections and their titles or null to display the data as a flat list.
 		/// </param>
 		public SQLiteTableViewController (SQLiteConnection sqlitedb, int pageSize, SQLiteOrderBy orderBy, string sectionExpression)
-			: base (UITableViewStyle.Plain)
+			: base (UITableViewStyle.Plain, true)
 		{
 			SearchModel = new SQLiteTableModel<T> (sqlitedb, pageSize, orderBy, sectionExpression);
 			Model = new SQLiteTableModel<T> (sqlitedb, pageSize, orderBy, sectionExpression);
@@ -112,7 +112,7 @@ namespace MonoTouch.SQLite
 		/// <param name='style'>
 		/// The UITableViewStyle.
 		/// </param>
-		public SQLiteTableViewController (UITableViewStyle style) : base (style)
+		public SQLiteTableViewController (UITableViewStyle style) : base (style, true)
 		{
 		}
 		
@@ -122,7 +122,7 @@ namespace MonoTouch.SQLite
 		/// 
 		/// Note: If you use this .ctor, you'll need to implement <see cref="CreateModel(bool)"/>.
 		/// </summary>
-		public SQLiteTableViewController () : base (UITableViewStyle.Plain)
+		public SQLiteTableViewController () : base (UITableViewStyle.Plain, true)
 		{
 		}
 		
@@ -151,7 +151,9 @@ namespace MonoTouch.SQLite
 		/// </summary>
 		public void ReloadData ()
 		{
-			SearchModel.ReloadData ();
+			if (CanSearch)
+				SearchModel.ReloadData ();
+
 			Model.ReloadData ();
 			
 			if (SearchDisplayController != null)
@@ -176,16 +178,20 @@ namespace MonoTouch.SQLite
 		
 		public override void ViewDidLoad ()
 		{
-			base.ViewDidLoad ();
-			
 			if (Model == null)
 				Model = CreateModel (false);
 			
-			if (SearchModel == null)
-				SearchModel = CreateModel (true);
+			if (CanSearch) {
+				if (SearchModel == null)
+					SearchModel = CreateModel (true);
+			}
 
-			SearchDisplayController.SearchResultsTableView.SectionFooterHeight = 0;
-			SearchDisplayController.SearchResultsTableView.AllowsSelection = true;
+			base.ViewDidLoad ();
+
+			if (CanSearch) {
+				SearchDisplayController.SearchResultsTableView.SectionFooterHeight = 0;
+				SearchDisplayController.SearchResultsTableView.AllowsSelection = true;
+			}
 
 			TableView.SectionFooterHeight = 0;
 			TableView.AllowsSelection = true;
@@ -203,7 +209,7 @@ namespace MonoTouch.SQLite
 		/// </param>
 		protected SQLiteTableModel<T> ModelForTableView (UITableView tableView)
 		{
-			if (tableView == SearchDisplayController.SearchResultsTableView)
+			if (CanSearch && tableView == SearchDisplayController.SearchResultsTableView)
 				return SearchModel;
 			else
 				return Model;

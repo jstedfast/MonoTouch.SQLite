@@ -29,231 +29,14 @@ using System.Drawing;
 
 using MonoTouch.Foundation;
 using MonoTouch.UIKit;
+using MonoTouch.ObjCRuntime;
 
 namespace MonoTouch.SQLite {
 	public abstract class AllInOneTableViewController : UITableViewController
 	{
-		class AllInOneTableViewDataSource : UITableViewDataSource
-		{
-			AllInOneTableViewController controller;
-			
-			public AllInOneTableViewDataSource (AllInOneTableViewController controller)
-			{
-				this.controller = controller;
-			}
-			
-			public override int NumberOfSections (UITableView tableView)
-			{
-				return controller.NumberOfSections (tableView);
-			}
-			
-			public override int RowsInSection (UITableView tableView, int section)
-			{
-				return controller.RowsInSection (tableView, section);
-			}
-			
-			public override UITableViewCell GetCell (UITableView tableView, NSIndexPath indexPath)
-			{
-				return controller.GetCell (tableView, indexPath);
-			}
-			
-			public override string TitleForHeader (UITableView tableView, int section)
-			{
-				return controller.TitleForHeader (tableView, section);
-			}
-			
-			public override string TitleForFooter (UITableView tableView, int section)
-			{
-				return controller.TitleForFooter (tableView, section);
-			}
-			
-			public override bool CanEditRow (UITableView tableView, NSIndexPath indexPath)
-			{
-				return controller.CanEditRow (tableView, indexPath);
-			}
-			
-			public override bool CanMoveRow (UITableView tableView, NSIndexPath indexPath)
-			{
-				return controller.CanMoveRow (tableView, indexPath);
-			}
-			
-			public override void CommitEditingStyle (UITableView tableView, UITableViewCellEditingStyle editingStyle, NSIndexPath indexPath)
-			{
-				controller.CommitEditingStyle (tableView, editingStyle, indexPath);
-			}
-			
-			public override void MoveRow (UITableView tableView, NSIndexPath sourceIndexPath, NSIndexPath destinationIndexPath)
-			{
-				controller.MoveRow (tableView, sourceIndexPath, destinationIndexPath);
-			}
-		}
-		
-		class AllInOneTableViewDelegate : UITableViewDelegate
-		{
-			AllInOneTableViewController controller;
-			
-			public AllInOneTableViewDelegate (AllInOneTableViewController controller)
-			{
-				this.controller = controller;
-			}
-			
-			public override void AccessoryButtonTapped (UITableView tableView, NSIndexPath indexPath)
-			{
-				controller.AccessoryButtonTapped (tableView, indexPath);
-			}
-			
-			public override bool ShouldIndentWhileEditing (UITableView tableView, NSIndexPath indexPath)
-			{
-				return controller.ShouldIndentWhileEditing (tableView, indexPath);
-			}
-			
-			public override int IndentationLevel (UITableView tableView, NSIndexPath indexPath)
-			{
-				return controller.IndentationLevel (tableView, indexPath);
-			}
-			
-			public override UITableViewCellEditingStyle EditingStyleForRow (UITableView tableView, NSIndexPath indexPath)
-			{
-				return controller.EditingStyleForRow (tableView, indexPath);
-			}
-			
-			public override void WillBeginEditing (UITableView tableView, NSIndexPath indexPath)
-			{
-				controller.WillBeginEditing (tableView, indexPath);
-			}
-			
-			public override void DidEndEditing (UITableView tableView, NSIndexPath indexPath)
-			{
-				controller.DidEndEditing (tableView, indexPath);
-			}
-			
-			public override UIView GetViewForHeader (UITableView tableView, int section)
-			{
-				return controller.GetViewForHeader (tableView, section);
-			}
-			
-			public override UIView GetViewForFooter (UITableView tableView, int section)
-			{
-				return controller.GetViewForFooter (tableView, section);
-			}
-			
-			//public override float GetHeightForRow (UITableView tableView, NSIndexPath indexPath)
-			//{
-			//	return controller.GetHeightForRow (tableView, indexPath);
-			//}
-			
-			//public override float GetHeightForHeader (UITableView tableView, int section)
-			//{
-			//	return controller.GetHeightForHeader (tableView, section);
-			//}
-			
-			//public override float GetHeightForFooter (UITableView tableView, int section)
-			//{
-			//	return controller.GetHeightForFooter (tableView, section);
-			//}
-			
-			public override NSIndexPath WillSelectRow (UITableView tableView, NSIndexPath indexPath)
-			{
-				return controller.WillSelectRow (tableView, indexPath);
-			}
-			
-			public override void RowSelected (UITableView tableView, NSIndexPath indexPath)
-			{
-				controller.RowSelected (tableView, indexPath);
-			}
-			
-			public override void WillDeselectRow (UITableView tableView, NSIndexPath indexPath)
-			{
-				controller.WillDeselectRow (tableView, indexPath);
-			}
-			
-			public override void RowDeselected (UITableView tableView, NSIndexPath indexPath)
-			{
-				controller.RowDeselected (tableView, indexPath);
-			}
-			
-			public override string TitleForDeleteConfirmation (UITableView tableView, NSIndexPath indexPath)
-			{
-				return controller.TitleForDeleteConfirmation (tableView, indexPath);
-			}
-		}
-		
-		class AllInOneSearchDisplayDelegate : UISearchDisplayDelegate
-		{
-			AllInOneTableViewController tableViewController;
-			
-			public AllInOneSearchDisplayDelegate (AllInOneTableViewController controller)
-			{
-				this.tableViewController = controller;
-			}
-			
-			public override void WillBeginSearch (UISearchDisplayController controller)
-			{
-				tableViewController.WillBeginSearch (controller);
-			}
-			
-			public override void DidBeginSearch (UISearchDisplayController controller)
-			{
-				tableViewController.DidBeginSearch (controller);
-			}
-			
-			public override void WillEndSearch (UISearchDisplayController controller)
-			{
-				tableViewController.WillEndSearch (controller);
-			}
-			
-			public override void DidEndSearch (UISearchDisplayController controller)
-			{
-				tableViewController.DidEndSearch (controller);
-			}
-			
-			public override void DidLoadSearchResults (UISearchDisplayController controller, UITableView tableView)
-			{
-				tableViewController.DidLoadSearchResults (controller, tableView);
-			}
-			
-			public override void WillUnloadSearchResults (UISearchDisplayController controller, UITableView tableView)
-			{
-				tableViewController.WillUnloadSearchResults (controller, tableView);
-			}
-			
-			public override void WillShowSearchResults (UISearchDisplayController controller, UITableView tableView)
-			{
-				tableViewController.WillShowSearchResults (controller, tableView);
-			}
-			
-			public override void DidShowSearchResults (UISearchDisplayController controller, UITableView tableView)
-			{
-				tableViewController.DidShowSearchResults (controller, tableView);
-			}
-			
-			public override void WillHideSearchResults (UISearchDisplayController controller, UITableView tableView)
-			{
-				tableViewController.WillHideSearchResults (controller, tableView);
-			}
-			
-			public override void DidHideSearchResults (UISearchDisplayController controller, UITableView tableView)
-			{
-				tableViewController.DidHideSearchResults (controller, tableView);
-			}
-			
-			public override bool ShouldReloadForSearchScope (UISearchDisplayController controller, int scope)
-			{
-				return tableViewController.ShouldReloadForSearchScope (controller, scope);
-			}
-			
-			public override bool ShouldReloadForSearchString (UISearchDisplayController controller, string search)
-			{
-				return tableViewController.ShouldReloadForSearchString (controller, search);
-			}
-		}
-		
 		protected static float DefaultSearchBarHeight = 44.0f;
 		
 		UISearchDisplayController searchDisplayController;
-		AllInOneSearchDisplayDelegate searchDisplayDelegate;
-		AllInOneTableViewDataSource tableViewDataSource;
-		AllInOneTableViewDelegate tableViewDelegate;
 		bool searchLoaded = false;
 		bool canSearch = false;
 		UISearchBar searchBar;
@@ -262,13 +45,11 @@ namespace MonoTouch.SQLite {
 		
 		public AllInOneTableViewController (UITableViewStyle style, bool canSearch) : base (style)
 		{
-			tableViewDataSource = new AllInOneTableViewDataSource (this);
-			tableViewDelegate = new AllInOneTableViewDelegate (this);
 			ClearsSelectionOnViewWillAppear = false;
 			CanSearch = canSearch;
 		}
 
-		public AllInOneTableViewController (UITableViewStyle style) : this (style, true)
+		public AllInOneTableViewController (UITableViewStyle style) : this (style, false)
 		{
 		}
 		
@@ -329,20 +110,18 @@ namespace MonoTouch.SQLite {
 					searchBar.Placeholder = SearchPlaceholder;
 
 				searchDisplayController = new UISearchDisplayController (searchBar, this);
-				searchDisplayDelegate = new AllInOneSearchDisplayDelegate (this);
-
-				SearchDisplayController.SearchResultsDataSource = tableViewDataSource;
-				SearchDisplayController.SearchResultsDelegate = tableViewDelegate;
-				SearchDisplayController.Delegate = searchDisplayDelegate;
+				SearchDisplayController.SearchResultsWeakDataSource = this;
+				SearchDisplayController.SearchResultsWeakDelegate = this;
+				SearchDisplayController.WeakDelegate = this;
 			
 				TableView.TableHeaderView = searchBar;
 			}
 			
 			TableView.AutoresizingMask = UIViewAutoresizing.FlexibleHeight | UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleTopMargin;
 			TableView.AutosizesSubviews = true;
-			
-			TableView.DataSource = tableViewDataSource;
-			TableView.Delegate = tableViewDelegate;
+
+			TableView.WeakDataSource = this;
+			TableView.WeakDelegate = this;
 
 			if (rowHeight > 0)
 				TableView.RowHeight = rowHeight;
@@ -365,136 +144,197 @@ namespace MonoTouch.SQLite {
 		}
 		
 		#region UITableVIewDataSource
+		[Export ("numberOfSectionsInTableView:")]
 		protected abstract int NumberOfSections (UITableView tableView);
+
+		[Export ("tableView:numberOfRowsInSection:")]
 		protected abstract int RowsInSection (UITableView tableView, int section);
+
+		[Export ("tableView:cellForRowAtIndexPath:")]
 		protected abstract UITableViewCell GetCell (UITableView tableView, NSIndexPath indexPath);
-		
+
+		[Export ("tableView:titleForHeaderInSection:")]
 		protected virtual string TitleForHeader (UITableView tableView, int section)
 		{
 			return null;
 		}
-		
+
+		[Export ("tableView:titleForFooterInSection:")]
 		protected virtual string TitleForFooter (UITableView tableView, int section)
 		{
 			return null;
 		}
-		
+
+		[Export ("tableView:canEditRowAtIndexPath:")]
 		protected virtual bool CanEditRow (UITableView tableView, NSIndexPath indexPath)
 		{
 			return false;
 		}
-		
+
+		[Export ("tableView:canMoveRowAtIndexPath:")]
 		protected virtual bool CanMoveRow (UITableView tableView, NSIndexPath idnexPath)
 		{
 			return false;
 		}
+
+		//[Export ("sectionIndexTitlesForTableView:")]
+		//protected abstract string [] SectionIndexTitles (UITableView tableView);
 		
+		//[Export ("tableView:sectionForSectionIndexTitle:atIndex:")]
+		//protected abstract int SectionFor (UITableView tableView, string title, int atIndex);
+
+		[Export ("tableView:commitEditingStyle:forRowAtIndexPath:")]
 		protected virtual void CommitEditingStyle (UITableView tableView, UITableViewCellEditingStyle editingStyle, NSIndexPath indexPath)
 		{
 		}
-		
+
+		[Export ("tableView:moveRowAtIndexPath:toIndexPath:")]
 		protected virtual void MoveRow (UITableView tableView, NSIndexPath sourceIndexPath, NSIndexPath destinationIndexPath)
 		{
 		}
 		#endregion
 		
 		#region UITableViewDelegate
+		[Export ("tableView:accessoryButtonTappedForRowWithIndexPath:")]
 		protected virtual void AccessoryButtonTapped (UITableView tableView, NSIndexPath indexPath)
 		{
 		}
-		
+
+		//[Export ("tableView:targetIndexPathForMoveFromRowAtIndexPath:toProposedIndexPath:")]
+		//protected virtual NSIndexPath CustomizeMoveTarget (UITableView tableView, NSIndexPath sourceIndexPath, NSIndexPath proposedIndexPath)
+		//{
+		//}
+
+		[Export ("tableView:shouldIndentWhileEditingRowAtIndexPath:")]
 		protected virtual bool ShouldIndentWhileEditing (UITableView tableView, NSIndexPath indexPath)
 		{
 			return false;
 		}
-		
+
+		[Export ("tableView:indentationLevelForRowAtIndexPath:")]
 		protected virtual int IndentationLevel (UITableView tableView, NSIndexPath indexPath)
 		{
 			return 0;
 		}
-		
+
+		[Export ("tableView:editingStyleForRowAtIndexPath:")]
 		protected virtual UITableViewCellEditingStyle EditingStyleForRow (UITableView tableView, NSIndexPath indexPath)
 		{
 			return UITableViewCellEditingStyle.None;
 		}
-		
+
+		[Export ("tableView:willDisplayCell:forRowAtIndexPath:")]
 		protected virtual void WillDisplay (UITableView tableView, UITableViewCell cell, NSIndexPath indexPath)
 		{
 		}
-		
+
+		[Export ("tableView:willBeginEditingRowAtIndexPath:")]
 		protected virtual void WillBeginEditing (UITableView tableView, NSIndexPath indexPath)
 		{
 		}
-		
+
+		[Export ("tableView:didEndEditingRowAtIndexPath:")]
 		protected virtual void DidEndEditing (UITableView tableView, NSIndexPath indexPath)
 		{
 		}
-		
+
+		[Export ("tableView:viewForHeaderInSection:")]
 		protected virtual UIView GetViewForHeader (UITableView tableView, int section)
 		{
 			return null;
 		}
-		
+
+		[Export ("tableView:viewForFooterInSection:")]
 		protected virtual UIView GetViewForFooter (UITableView tableView, int section)
 		{
 			return null;
 		}
-		
-		//protected virtual float GetHeightForRow (UITableView tableView, NSIndexPath indexPath)
-		//{
-		//	return tableView.RowHeight;
-		//}
-		
+
+		//[Export ("tableView:heightForHeaderInSection:")]
 		//protected virtual float GetHeightForHeader (UITableView tableView, int section)
 		//{
 		//	return tableView.SectionHeaderHeight;
 		//}
-		
+
+		//[Export ("tableView:heightForFooterInSection:")]
 		//protected virtual float GetHeightForFooter (UITableView tableView, int section)
 		//{
 		//	return tableView.SectionFooterHeight;
 		//}
-		
+
+		//[Export ("tableView:heightForRowAtIndexPath:")]
+		//protected virtual float GetHeightForRow (UITableView tableView, NSIndexPath indexPath)
+		//{
+		//	return tableView.RowHeight;
+		//}
+
+		[Export ("tableView:willSelectRowAtIndexPath:")]
 		protected virtual NSIndexPath WillSelectRow (UITableView tableView, NSIndexPath indexPath)
 		{
 			return indexPath;
 		}
-		
+
+		[Export ("tableView:didSelectRowAtIndexPath:")]
 		protected virtual void RowSelected (UITableView tableView, NSIndexPath indexPath)
 		{
 		}
-		
+
+		[Export ("tableView:willDeselectRowAtIndexPath:")]
 		protected virtual void WillDeselectRow (UITableView tableView, NSIndexPath indexPath)
 		{
 		}
-		
+
+		[Export ("tableView:didDeselectRowAtIndexPath:")]
 		protected virtual void RowDeselected (UITableView tableView, NSIndexPath indexPath)
 		{
 		}
-		
+
+		[Export ("tableView:titleForDeleteConfirmationButtonForRowAtIndexPath:")]
 		protected virtual string TitleForDeleteConfirmation (UITableView tableView, NSIndexPath indexPath)
 		{
 			return "Delete";
 		}
+
+		//[Export ("tableView:shouldShowMenuForRowAtIndexPath:")]
+		//protected virtual bool ShouldShowMenu (UITableView tableView, NSIndexPath rowAtindexPath)
+		//{
+		//	return false;
+		//}
+
+		//[Export ("tableView:canPerformAction:forRowAtIndexPath:withSender:")]
+		//protected virtual bool CanPerformAction (UITableView tableView, Selector action, NSIndexPath indexPath, NSObject sender)
+		//{
+		//	return false;
+		//}
+
+		//[Export ("tableView:performAction:forRowAtIndexPath:withSender:")]
+		//protected void PerformAction (UITableView tableView, Selector action, NSIndexPath indexPath, NSObject sender)
+		//{
+		//}
 		#endregion
 		
 		#region UISearchDisplayDelegate
+		[Export ("searchDisplayControllerWillBeginSearch:")]
 		protected virtual void WillBeginSearch (UISearchDisplayController controller)
 		{
 		}
-		
+
+		[Export ("searchDisplayControllerDidBeginSearch:")]
 		protected virtual void DidBeginSearch (UISearchDisplayController controller)
 		{
 		}
-		
+
+		[Export ("searchDisplayControllerWillEndSearch:")]
 		protected virtual void WillEndSearch (UISearchDisplayController controller)
 		{
 		}
-		
+
+		[Export ("searchDisplayControllerDidEndSearch:")]
 		protected virtual void DidEndSearch (UISearchDisplayController controller)
 		{
 		}
-		
+
+		[Export ("searchDisplayController:didLoadSearchResultsTableView:")]
 		protected virtual void DidLoadSearchResults (UISearchDisplayController controller, UITableView tableView)
 		{
 			tableView.AutoresizingMask = UIViewAutoresizing.FlexibleHeight | UIViewAutoresizing.FlexibleWidth | UIViewAutoresizing.FlexibleTopMargin;
@@ -505,33 +345,40 @@ namespace MonoTouch.SQLite {
 
 			searchLoaded = true;
 		}
-		
+
+		[Export ("searchDisplayController:willUnloadSearchResultsTableView:")]
 		protected virtual void WillUnloadSearchResults (UISearchDisplayController controller, UITableView tableView)
 		{
 			searchLoaded = false;
 		}
-		
+
+		[Export ("searchDisplayController:willShowSearchResultsTableView:")]
 		protected virtual void WillShowSearchResults (UISearchDisplayController controller, UITableView tableView)
 		{
 		}
-		
+
+		[Export ("searchDisplayController:didShowSearchResultsTableView:")]
 		protected virtual void DidShowSearchResults (UISearchDisplayController controller, UITableView tableView)
 		{
 		}
-		
+
+		[Export ("searchDisplayController:willHideSearchResultsTableView:")]
 		protected virtual void WillHideSearchResults (UISearchDisplayController controller, UITableView tableView)
 		{
 		}
-		
+
+		[Export ("searchDisplayController:didHideSearchResultsTableView:")]
 		protected virtual void DidHideSearchResults (UISearchDisplayController controller, UITableView tableView)
 		{
 		}
-		
+
+		[Export ("searchDisplayController:shouldReloadTableForSearchScope:")]
 		protected virtual bool ShouldReloadForSearchScope (UISearchDisplayController controller, int scope)
 		{
 			return true;
 		}
-		
+
+		[Export ("searchDisplayController:shouldReloadTableForSearchString:")]
 		protected virtual bool ShouldReloadForSearchString (UISearchDisplayController controller, string search)
 		{
 			return true;
