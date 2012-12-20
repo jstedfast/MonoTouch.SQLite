@@ -375,7 +375,7 @@ namespace MonoTouch.SQLite {
 		
 		/// <summary>
 		/// Gets or sets the search text. Setting this value will also update
-		/// <see cref="P:FlightLog.SQLiteTableModel.SearchExpression"/>.
+		/// <see cref="P:MonoTouch.SQLite.SQLiteTableModel.SearchExpression"/>.
 		/// </summary>
 		/// <value>
 		/// The search text.
