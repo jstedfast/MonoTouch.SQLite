@@ -925,9 +925,15 @@ namespace MonoTouch.SQLite {
 		}
 		
 		#region IDisposable implementation
+		protected virtual void Dispose (bool disposing)
+		{
+			if (disposing)
+				ReloadData ();
+		}
+
 		public void Dispose ()
 		{
-			ReloadData ();
+			Dispose (true);
 		}
 		#endregion
 	}
