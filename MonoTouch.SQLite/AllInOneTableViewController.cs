@@ -46,13 +46,11 @@ namespace MonoTouch.SQLite {
 		float rowHeight = -1;
 		bool loaded = false;
 
-		static void ConnectMethod (Type type, MethodInfo method, Selector selector)
+		static void ConnectMethod (Type type, MethodInfo method, ExportAttribute export)
 		{
-			var ea = new ExportAttribute (selector.Name);
-			var klass = new Class (type);
+			var args = new object[] { method, export, type, new Class (type).Handle, true };
 
-			typeof (Class).InvokeMember ("RegisterMethod", BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.InvokeMethod, null, null, new object[] { method, ea, type, klass.Handle, true });
-			//Class.RegisterMethod (method, ea, type, klass.Handle, true);
+			typeof (Class).InvokeMember ("RegisterMethod", BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.InvokeMethod, null, null, args);
 		}
 
 		static void RegisterType (Type type)
@@ -71,7 +69,7 @@ namespace MonoTouch.SQLite {
 
 					Console.WriteLine ("Registering method {0}.{1}() with selector {2}", type.FullName, method.Name, export.Selector);
 
-					ConnectMethod (type, method, new Selector (export.Selector));
+					ConnectMethod (type, method, export.Export);
 				}
 
 				registeredTypes.Add (type);

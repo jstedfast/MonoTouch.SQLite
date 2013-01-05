@@ -28,6 +28,7 @@ using System;
 using System.Reflection;
 
 using MonoTouch.ObjCRuntime;
+using MonoTouch.Foundation;
 
 namespace MonoTouch.SQLite
 {
@@ -57,13 +58,21 @@ namespace MonoTouch.SQLite
 			get; set;
 		}
 
-		public string Getter {
-			get { return Selector; }
+		public ExportAttribute Export {
+			get {
+				return new ExportAttribute (Selector, ArgumentSemantic);
+			}
 		}
 
-		public string Setter {
+		public ExportAttribute GetterExport {
+			get { return Export; }
+		}
+
+		public ExportAttribute SetterExport {
 			get {
-				return string.Format ("set{0}{1}:", char.ToUpperInvariant (Selector[0]), Selector.Substring (1));
+				var setter = string.Format ("set{0}{1}:", char.ToUpperInvariant (Selector[0]), Selector.Substring (1));
+
+				return new ExportAttribute (setter, ArgumentSemantic);
 			}
 		}
 	}
