@@ -196,6 +196,17 @@ namespace MonoTouch.SQLite
 			TableView.SectionFooterHeight = 0;
 			TableView.AllowsSelection = true;
 		}
+
+		public override void DidReceiveMemoryWarning ()
+		{
+			if (CanSearch && SearchModel != null)
+				SearchModel.ClearCache ();
+
+			if (Model != null)
+				Model.ClearCache ();
+
+			base.DidReceiveMemoryWarning ();
+		}
 		
 		/// <summary>
 		/// Gets the models associated with the given UITableView. This will

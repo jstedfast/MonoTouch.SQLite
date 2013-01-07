@@ -785,12 +785,14 @@ namespace MonoTouch.SQLite {
 				
 				// Calculate the number of items we need to fetch...
 				limit = offset - first;
-				
+
+#if SQLITE_TABLE_MODEL_SHOULD_PAGE_OUT
 				// Calculate the number of items we need to uncache...
 				int rem = limit - ((2 * PageSize) - cache.Count);
 				
 				if (rem > 0)
 					cache.RemoveRange (cache.Count - rem, rem);
+#endif
 				
 				var cmd = CreateQueryCommand (limit, first);
 				var results = cmd.ExecuteQuery<T> ();
@@ -800,8 +802,12 @@ namespace MonoTouch.SQLite {
 				offset = first;
 			} else if (index == offset + cache.Count) {
 				// User is scrolling down. Fetch the next page of items...
+#if SQLITE_TABLE_MODEL_SHOULD_PAGE_OUT
 				if (cache.Count > PageSize)
 					cache.RemoveRange (0, cache.Count - PageSize);
+
+				offset = Math.Max (index - PageSize, 0);
+#endif
 				
 				// Load 2 pages if we are at the beginning
 				if (index == 0)
@@ -809,8 +815,7 @@ namespace MonoTouch.SQLite {
 				
 				var cmd = CreateQueryCommand (limit, index);
 				var results = cmd.ExecuteQuery<T> ();
-				
-				offset = Math.Max (index - PageSize, 0);
+
 				cache.AddRange (results);
 			} else if (index < offset || index > offset + cache.Count) {
 				// User is requesting an item in the middle of no-where...
@@ -905,6 +910,15 @@ namespace MonoTouch.SQLite {
 			} while (lo < hi);
 			
 			return -1;
+		}
+
+		/// <summary>
+		/// Clears the internal cache of items. Useful when our SQLiteTableViewController
+		/// receives a memory warning.
+		/// </summary>
+		public virtual void ClearCache ()
+		{
+			cache.Clear ();
 		}
 		
 		/// <summary>
