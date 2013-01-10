@@ -46,13 +46,6 @@ namespace MonoTouch.SQLite {
 		float rowHeight = -1;
 		bool loaded = false;
 
-		static void ConnectMethod (Type type, MethodInfo method, ExportAttribute export)
-		{
-			var args = new object[] { method, export, type, new Class (type).Handle, true };
-
-			typeof (Class).InvokeMember ("RegisterMethod", BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.InvokeMethod, null, null, args);
-		}
-
 		static void RegisterType (Type type)
 		{
 			lock (registeredTypes) {
@@ -67,9 +60,9 @@ namespace MonoTouch.SQLite {
 					if (export == null)
 						continue;
 
-					Console.WriteLine ("Registering method {0}.{1}() with selector {2}", type.FullName, method.Name, export.Selector);
+					//Console.WriteLine ("Registering method {0}.{1}() with selector {2}", type.FullName, method.Name, export.Selector);
 
-					ConnectMethod (type, method, export.Export);
+					Runtime.ConnectMethod (type, method, export.Export);
 				}
 
 				registeredTypes.Add (type);
@@ -152,7 +145,7 @@ namespace MonoTouch.SQLite {
 				SearchDisplayController.SearchResultsWeakDataSource = this;
 				SearchDisplayController.SearchResultsWeakDelegate = this;
 				SearchDisplayController.WeakDelegate = this;
-			
+
 				TableView.TableHeaderView = searchBar;
 			}
 			
