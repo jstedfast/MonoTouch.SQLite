@@ -76,6 +76,5 @@
     <Compile Include="SQLiteSearchExpression.cs" />
     <Compile Include="SQLiteTableModel.cs" />
     <Compile Include="SQLiteTableViewController.cs" />
-    <Compile Include="DynamicExportAttribute.cs" />
   </ItemGroup>
 </Project>

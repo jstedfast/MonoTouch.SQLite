@@ -26,17 +26,14 @@
 
 using System;
 using System.Drawing;
-using System.Reflection;
-using System.Collections.Generic;
 
-using MonoTouch.ObjCRuntime;
 using MonoTouch.Foundation;
 using MonoTouch.UIKit;
+using MonoTouch.ObjCRuntime;
 
 namespace MonoTouch.SQLite {
 	public abstract class AllInOneTableViewController : UITableViewController
 	{
-		static HashSet<Type> registeredTypes = new HashSet<Type> ();
 		protected static float DefaultSearchBarHeight = 44.0f;
 		
 		UISearchDisplayController searchDisplayController;
@@ -45,43 +42,14 @@ namespace MonoTouch.SQLite {
 		UISearchBar searchBar;
 		float rowHeight = -1;
 		bool loaded = false;
-
-		static void RegisterType (Type type)
-		{
-			lock (registeredTypes) {
-				if (registeredTypes.Contains (type))
-					return;
-
-				foreach (var method in type.GetMethods (BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)) {
-					if (method.DeclaringType == typeof (AllInOneTableViewController))
-						continue;
-
-					var export = (DynamicExportAttribute) Attribute.GetCustomAttribute (method, typeof (DynamicExportAttribute), true);
-					if (export == null)
-						continue;
-
-					//Console.WriteLine ("Registering method {0}.{1}() with selector {2}", type.FullName, method.Name, export.Selector);
-
-					Runtime.ConnectMethod (type, method, export.Export);
-				}
-
-				registeredTypes.Add (type);
-			}
-		}
 		
 		public AllInOneTableViewController (UITableViewStyle style, bool canSearch) : base (style)
 		{
 			ClearsSelectionOnViewWillAppear = false;
 			CanSearch = canSearch;
-
-			RegisterType (GetType ());
 		}
 
 		public AllInOneTableViewController (UITableViewStyle style) : this (style, false)
-		{
-		}
-
-		public AllInOneTableViewController () : this (UITableViewStyle.Grouped)
 		{
 		}
 		
@@ -185,190 +153,183 @@ namespace MonoTouch.SQLite {
 		[Export ("tableView:cellForRowAtIndexPath:")]
 		protected abstract UITableViewCell GetCell (UITableView tableView, NSIndexPath indexPath);
 
-		[DynamicExport ("tableView:titleForHeaderInSection:")]
+		[Export ("tableView:titleForHeaderInSection:")]
 		protected virtual string TitleForHeader (UITableView tableView, int section)
 		{
 			return null;
 		}
 
-		[DynamicExport ("tableView:titleForFooterInSection:")]
+		[Export ("tableView:titleForFooterInSection:")]
 		protected virtual string TitleForFooter (UITableView tableView, int section)
 		{
 			return null;
 		}
 
-		[DynamicExport ("tableView:canEditRowAtIndexPath:")]
+		[Export ("tableView:canEditRowAtIndexPath:")]
 		protected virtual bool CanEditRow (UITableView tableView, NSIndexPath indexPath)
 		{
 			return false;
 		}
 
-		[DynamicExport ("tableView:canMoveRowAtIndexPath:")]
+		[Export ("tableView:canMoveRowAtIndexPath:")]
 		protected virtual bool CanMoveRow (UITableView tableView, NSIndexPath idnexPath)
 		{
 			return false;
 		}
 
-		[DynamicExport ("sectionIndexTitlesForTableView:")]
-		protected virtual string [] SectionIndexTitles (UITableView tableView)
-		{
-			return new string [0];
-		}
+		//[Export ("sectionIndexTitlesForTableView:")]
+		//protected abstract string [] SectionIndexTitles (UITableView tableView);
 		
-		[DynamicExport ("tableView:sectionForSectionIndexTitle:atIndex:")]
-		protected virtual int SectionFor (UITableView tableView, string title, int atIndex)
-		{
-			return 0;
-		}
+		//[Export ("tableView:sectionForSectionIndexTitle:atIndex:")]
+		//protected abstract int SectionFor (UITableView tableView, string title, int atIndex);
 
-		[DynamicExport ("tableView:commitEditingStyle:forRowAtIndexPath:")]
+		[Export ("tableView:commitEditingStyle:forRowAtIndexPath:")]
 		protected virtual void CommitEditingStyle (UITableView tableView, UITableViewCellEditingStyle editingStyle, NSIndexPath indexPath)
 		{
 		}
 
-		[DynamicExport ("tableView:moveRowAtIndexPath:toIndexPath:")]
+		[Export ("tableView:moveRowAtIndexPath:toIndexPath:")]
 		protected virtual void MoveRow (UITableView tableView, NSIndexPath sourceIndexPath, NSIndexPath destinationIndexPath)
 		{
 		}
 		#endregion
 		
 		#region UITableViewDelegate
-		[DynamicExport ("tableView:accessoryButtonTappedForRowWithIndexPath:")]
+		[Export ("tableView:accessoryButtonTappedForRowWithIndexPath:")]
 		protected virtual void AccessoryButtonTapped (UITableView tableView, NSIndexPath indexPath)
 		{
 		}
 
-		[DynamicExport ("tableView:targetIndexPathForMoveFromRowAtIndexPath:toProposedIndexPath:")]
-		protected virtual NSIndexPath CustomizeMoveTarget (UITableView tableView, NSIndexPath sourceIndexPath, NSIndexPath proposedIndexPath)
-		{
-			return proposedIndexPath;
-		}
+		//[Export ("tableView:targetIndexPathForMoveFromRowAtIndexPath:toProposedIndexPath:")]
+		//protected virtual NSIndexPath CustomizeMoveTarget (UITableView tableView, NSIndexPath sourceIndexPath, NSIndexPath proposedIndexPath)
+		//{
+		//}
 
-		[DynamicExport ("tableView:shouldIndentWhileEditingRowAtIndexPath:")]
+		[Export ("tableView:shouldIndentWhileEditingRowAtIndexPath:")]
 		protected virtual bool ShouldIndentWhileEditing (UITableView tableView, NSIndexPath indexPath)
 		{
 			return false;
 		}
 
-		[DynamicExport ("tableView:indentationLevelForRowAtIndexPath:")]
+		[Export ("tableView:indentationLevelForRowAtIndexPath:")]
 		protected virtual int IndentationLevel (UITableView tableView, NSIndexPath indexPath)
 		{
 			return 0;
 		}
 
-		[DynamicExport ("tableView:editingStyleForRowAtIndexPath:")]
+		[Export ("tableView:editingStyleForRowAtIndexPath:")]
 		protected virtual UITableViewCellEditingStyle EditingStyleForRow (UITableView tableView, NSIndexPath indexPath)
 		{
 			return UITableViewCellEditingStyle.None;
 		}
 
-		[DynamicExport ("tableView:willDisplayCell:forRowAtIndexPath:")]
+		[Export ("tableView:willDisplayCell:forRowAtIndexPath:")]
 		protected virtual void WillDisplay (UITableView tableView, UITableViewCell cell, NSIndexPath indexPath)
 		{
 		}
 
-		[DynamicExport ("tableView:willBeginEditingRowAtIndexPath:")]
+		[Export ("tableView:willBeginEditingRowAtIndexPath:")]
 		protected virtual void WillBeginEditing (UITableView tableView, NSIndexPath indexPath)
 		{
 		}
 
-		[DynamicExport ("tableView:didEndEditingRowAtIndexPath:")]
+		[Export ("tableView:didEndEditingRowAtIndexPath:")]
 		protected virtual void DidEndEditing (UITableView tableView, NSIndexPath indexPath)
 		{
 		}
 
-		[DynamicExport ("tableView:viewForHeaderInSection:")]
+		[Export ("tableView:viewForHeaderInSection:")]
 		protected virtual UIView GetViewForHeader (UITableView tableView, int section)
 		{
 			return null;
 		}
 
-		[DynamicExport ("tableView:viewForFooterInSection:")]
+		[Export ("tableView:viewForFooterInSection:")]
 		protected virtual UIView GetViewForFooter (UITableView tableView, int section)
 		{
 			return null;
 		}
 
-		[DynamicExport ("tableView:heightForHeaderInSection:")]
-		protected virtual float GetHeightForHeader (UITableView tableView, int section)
-		{
-			return tableView.SectionHeaderHeight;
-		}
+		//[Export ("tableView:heightForHeaderInSection:")]
+		//protected virtual float GetHeightForHeader (UITableView tableView, int section)
+		//{
+		//	return tableView.SectionHeaderHeight;
+		//}
 
-		[DynamicExport ("tableView:heightForFooterInSection:")]
-		protected virtual float GetHeightForFooter (UITableView tableView, int section)
-		{
-			return tableView.SectionFooterHeight;
-		}
+		//[Export ("tableView:heightForFooterInSection:")]
+		//protected virtual float GetHeightForFooter (UITableView tableView, int section)
+		//{
+		//	return tableView.SectionFooterHeight;
+		//}
 
-		[DynamicExport ("tableView:heightForRowAtIndexPath:")]
-		protected virtual float GetHeightForRow (UITableView tableView, NSIndexPath indexPath)
-		{
-			return tableView.RowHeight;
-		}
+		//[Export ("tableView:heightForRowAtIndexPath:")]
+		//protected virtual float GetHeightForRow (UITableView tableView, NSIndexPath indexPath)
+		//{
+		//	return tableView.RowHeight;
+		//}
 
-		[DynamicExport ("tableView:willSelectRowAtIndexPath:")]
+		[Export ("tableView:willSelectRowAtIndexPath:")]
 		protected virtual NSIndexPath WillSelectRow (UITableView tableView, NSIndexPath indexPath)
 		{
 			return indexPath;
 		}
 
-		[DynamicExport ("tableView:didSelectRowAtIndexPath:")]
+		[Export ("tableView:didSelectRowAtIndexPath:")]
 		protected virtual void RowSelected (UITableView tableView, NSIndexPath indexPath)
 		{
 		}
 
-		[DynamicExport ("tableView:willDeselectRowAtIndexPath:")]
+		[Export ("tableView:willDeselectRowAtIndexPath:")]
 		protected virtual void WillDeselectRow (UITableView tableView, NSIndexPath indexPath)
 		{
 		}
 
-		[DynamicExport ("tableView:didDeselectRowAtIndexPath:")]
+		[Export ("tableView:didDeselectRowAtIndexPath:")]
 		protected virtual void RowDeselected (UITableView tableView, NSIndexPath indexPath)
 		{
 		}
 
-		[DynamicExport ("tableView:titleForDeleteConfirmationButtonForRowAtIndexPath:")]
+		[Export ("tableView:titleForDeleteConfirmationButtonForRowAtIndexPath:")]
 		protected virtual string TitleForDeleteConfirmation (UITableView tableView, NSIndexPath indexPath)
 		{
 			return "Delete";
 		}
 
-		[DynamicExport ("tableView:shouldShowMenuForRowAtIndexPath:")]
-		protected virtual bool ShouldShowMenu (UITableView tableView, NSIndexPath rowAtindexPath)
-		{
-			return false;
-		}
+		//[Export ("tableView:shouldShowMenuForRowAtIndexPath:")]
+		//protected virtual bool ShouldShowMenu (UITableView tableView, NSIndexPath rowAtindexPath)
+		//{
+		//	return false;
+		//}
 
-		[DynamicExport ("tableView:canPerformAction:forRowAtIndexPath:withSender:")]
-		protected virtual bool CanPerformAction (UITableView tableView, Selector action, NSIndexPath indexPath, NSObject sender)
-		{
-			return false;
-		}
+		//[Export ("tableView:canPerformAction:forRowAtIndexPath:withSender:")]
+		//protected virtual bool CanPerformAction (UITableView tableView, Selector action, NSIndexPath indexPath, NSObject sender)
+		//{
+		//	return false;
+		//}
 
-		[DynamicExport ("tableView:performAction:forRowAtIndexPath:withSender:")]
-		protected void PerformAction (UITableView tableView, Selector action, NSIndexPath indexPath, NSObject sender)
-		{
-		}
+		//[Export ("tableView:performAction:forRowAtIndexPath:withSender:")]
+		//protected void PerformAction (UITableView tableView, Selector action, NSIndexPath indexPath, NSObject sender)
+		//{
+		//}
 		#endregion
 		
 		#region UISearchDisplayDelegate
-		[DynamicExport ("searchDisplayControllerWillBeginSearch:")]
+		[Export ("searchDisplayControllerWillBeginSearch:")]
 		protected virtual void WillBeginSearch (UISearchDisplayController controller)
 		{
 		}
 
-		[DynamicExport ("searchDisplayControllerDidBeginSearch:")]
+		[Export ("searchDisplayControllerDidBeginSearch:")]
 		protected virtual void DidBeginSearch (UISearchDisplayController controller)
 		{
 		}
 
-		[DynamicExport ("searchDisplayControllerWillEndSearch:")]
+		[Export ("searchDisplayControllerWillEndSearch:")]
 		protected virtual void WillEndSearch (UISearchDisplayController controller)
 		{
 		}
 
-		[DynamicExport ("searchDisplayControllerDidEndSearch:")]
+		[Export ("searchDisplayControllerDidEndSearch:")]
 		protected virtual void DidEndSearch (UISearchDisplayController controller)
 		{
 		}
@@ -391,33 +352,33 @@ namespace MonoTouch.SQLite {
 			searchLoaded = false;
 		}
 
-		[DynamicExport ("searchDisplayController:willShowSearchResultsTableView:")]
+		[Export ("searchDisplayController:willShowSearchResultsTableView:")]
 		protected virtual void WillShowSearchResults (UISearchDisplayController controller, UITableView tableView)
 		{
 		}
 
-		[DynamicExport ("searchDisplayController:didShowSearchResultsTableView:")]
+		[Export ("searchDisplayController:didShowSearchResultsTableView:")]
 		protected virtual void DidShowSearchResults (UISearchDisplayController controller, UITableView tableView)
 		{
 		}
 
-		[DynamicExport ("searchDisplayController:willHideSearchResultsTableView:")]
+		[Export ("searchDisplayController:willHideSearchResultsTableView:")]
 		protected virtual void WillHideSearchResults (UISearchDisplayController controller, UITableView tableView)
 		{
 		}
 
-		[DynamicExport ("searchDisplayController:didHideSearchResultsTableView:")]
+		[Export ("searchDisplayController:didHideSearchResultsTableView:")]
 		protected virtual void DidHideSearchResults (UISearchDisplayController controller, UITableView tableView)
 		{
 		}
 
-		[DynamicExport ("searchDisplayController:shouldReloadTableForSearchScope:")]
+		[Export ("searchDisplayController:shouldReloadTableForSearchScope:")]
 		protected virtual bool ShouldReloadForSearchScope (UISearchDisplayController controller, int scope)
 		{
 			return true;
 		}
 
-		[DynamicExport ("searchDisplayController:shouldReloadTableForSearchString:")]
+		[Export ("searchDisplayController:shouldReloadTableForSearchString:")]
 		protected virtual bool ShouldReloadForSearchString (UISearchDisplayController controller, string search)
 		{
 			return true;
