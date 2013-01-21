@@ -1,0 +1,457 @@
+diff --git b/MonoTouch.SQLite/AllInOneTableViewController.cs a/MonoTouch.SQLite/AllInOneTableViewController.cs
+index 8000959..ca51493 100644
+--- b/MonoTouch.SQLite/AllInOneTableViewController.cs
++++ a/MonoTouch.SQLite/AllInOneTableViewController.cs
+@@ -26,14 +26,17 @@
+ 
+ using System;
+ using System.Drawing;
++using System.Reflection;
++using System.Collections.Generic;
+ 
++using MonoTouch.ObjCRuntime;
+ using MonoTouch.Foundation;
+ using MonoTouch.UIKit;
+-using MonoTouch.ObjCRuntime;
+ 
+ namespace MonoTouch.SQLite {
+ 	public abstract class AllInOneTableViewController : UITableViewController
+ 	{
++		static HashSet<Type> registeredTypes = new HashSet<Type> ();
+ 		protected static float DefaultSearchBarHeight = 44.0f;
+ 		
+ 		UISearchDisplayController searchDisplayController;
+@@ -42,16 +45,45 @@ namespace MonoTouch.SQLite {
+ 		UISearchBar searchBar;
+ 		float rowHeight = -1;
+ 		bool loaded = false;
++
++		static void RegisterType (Type type)
++		{
++			lock (registeredTypes) {
++				if (registeredTypes.Contains (type))
++					return;
++
++				foreach (var method in type.GetMethods (BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance)) {
++					if (method.DeclaringType == typeof (AllInOneTableViewController))
++						continue;
++
++					var export = (DynamicExportAttribute) Attribute.GetCustomAttribute (method, typeof (DynamicExportAttribute), true);
++					if (export == null)
++						continue;
++
++					//Console.WriteLine ("Registering method {0}.{1}() with selector {2}", type.FullName, method.Name, export.Selector);
++
++					Runtime.ConnectMethod (type, method, export.Export);
++				}
++
++				registeredTypes.Add (type);
++			}
++		}
+ 		
+ 		public AllInOneTableViewController (UITableViewStyle style, bool canSearch) : base (style)
+ 		{
+ 			ClearsSelectionOnViewWillAppear = false;
+ 			CanSearch = canSearch;
++
++			RegisterType (GetType ());
+ 		}
+ 
+ 		public AllInOneTableViewController (UITableViewStyle style) : this (style, false)
+ 		{
+ 		}
++
++		public AllInOneTableViewController () : this (UITableViewStyle.Grouped)
++		{
++		}
+ 		
+ 		public bool AutoHideSearch {
+ 			get; set;
+@@ -153,183 +185,190 @@ namespace MonoTouch.SQLite {
+ 		[Export ("tableView:cellForRowAtIndexPath:")]
+ 		protected abstract UITableViewCell GetCell (UITableView tableView, NSIndexPath indexPath);
+ 
+-		[Export ("tableView:titleForHeaderInSection:")]
++		[DynamicExport ("tableView:titleForHeaderInSection:")]
+ 		protected virtual string TitleForHeader (UITableView tableView, int section)
+ 		{
+ 			return null;
+ 		}
+ 
+-		[Export ("tableView:titleForFooterInSection:")]
++		[DynamicExport ("tableView:titleForFooterInSection:")]
+ 		protected virtual string TitleForFooter (UITableView tableView, int section)
+ 		{
+ 			return null;
+ 		}
+ 
+-		[Export ("tableView:canEditRowAtIndexPath:")]
++		[DynamicExport ("tableView:canEditRowAtIndexPath:")]
+ 		protected virtual bool CanEditRow (UITableView tableView, NSIndexPath indexPath)
+ 		{
+ 			return false;
+ 		}
+ 
+-		[Export ("tableView:canMoveRowAtIndexPath:")]
++		[DynamicExport ("tableView:canMoveRowAtIndexPath:")]
+ 		protected virtual bool CanMoveRow (UITableView tableView, NSIndexPath idnexPath)
+ 		{
+ 			return false;
+ 		}
+ 
+-		//[Export ("sectionIndexTitlesForTableView:")]
+-		//protected abstract string [] SectionIndexTitles (UITableView tableView);
++		[DynamicExport ("sectionIndexTitlesForTableView:")]
++		protected virtual string [] SectionIndexTitles (UITableView tableView)
++		{
++			return new string [0];
++		}
+ 		
+-		//[Export ("tableView:sectionForSectionIndexTitle:atIndex:")]
+-		//protected abstract int SectionFor (UITableView tableView, string title, int atIndex);
++		[DynamicExport ("tableView:sectionForSectionIndexTitle:atIndex:")]
++		protected virtual int SectionFor (UITableView tableView, string title, int atIndex)
++		{
++			return 0;
++		}
+ 
+-		[Export ("tableView:commitEditingStyle:forRowAtIndexPath:")]
++		[DynamicExport ("tableView:commitEditingStyle:forRowAtIndexPath:")]
+ 		protected virtual void CommitEditingStyle (UITableView tableView, UITableViewCellEditingStyle editingStyle, NSIndexPath indexPath)
+ 		{
+ 		}
+ 
+-		[Export ("tableView:moveRowAtIndexPath:toIndexPath:")]
++		[DynamicExport ("tableView:moveRowAtIndexPath:toIndexPath:")]
+ 		protected virtual void MoveRow (UITableView tableView, NSIndexPath sourceIndexPath, NSIndexPath destinationIndexPath)
+ 		{
+ 		}
+ 		#endregion
+ 		
+ 		#region UITableViewDelegate
+-		[Export ("tableView:accessoryButtonTappedForRowWithIndexPath:")]
++		[DynamicExport ("tableView:accessoryButtonTappedForRowWithIndexPath:")]
+ 		protected virtual void AccessoryButtonTapped (UITableView tableView, NSIndexPath indexPath)
+ 		{
+ 		}
+ 
+-		//[Export ("tableView:targetIndexPathForMoveFromRowAtIndexPath:toProposedIndexPath:")]
+-		//protected virtual NSIndexPath CustomizeMoveTarget (UITableView tableView, NSIndexPath sourceIndexPath, NSIndexPath proposedIndexPath)
+-		//{
+-		//}
++		[DynamicExport ("tableView:targetIndexPathForMoveFromRowAtIndexPath:toProposedIndexPath:")]
++		protected virtual NSIndexPath CustomizeMoveTarget (UITableView tableView, NSIndexPath sourceIndexPath, NSIndexPath proposedIndexPath)
++		{
++			return proposedIndexPath;
++		}
+ 
+-		[Export ("tableView:shouldIndentWhileEditingRowAtIndexPath:")]
++		[DynamicExport ("tableView:shouldIndentWhileEditingRowAtIndexPath:")]
+ 		protected virtual bool ShouldIndentWhileEditing (UITableView tableView, NSIndexPath indexPath)
+ 		{
+ 			return false;
+ 		}
+ 
+-		[Export ("tableView:indentationLevelForRowAtIndexPath:")]
++		[DynamicExport ("tableView:indentationLevelForRowAtIndexPath:")]
+ 		protected virtual int IndentationLevel (UITableView tableView, NSIndexPath indexPath)
+ 		{
+ 			return 0;
+ 		}
+ 
+-		[Export ("tableView:editingStyleForRowAtIndexPath:")]
++		[DynamicExport ("tableView:editingStyleForRowAtIndexPath:")]
+ 		protected virtual UITableViewCellEditingStyle EditingStyleForRow (UITableView tableView, NSIndexPath indexPath)
+ 		{
+ 			return UITableViewCellEditingStyle.None;
+ 		}
+ 
+-		[Export ("tableView:willDisplayCell:forRowAtIndexPath:")]
++		[DynamicExport ("tableView:willDisplayCell:forRowAtIndexPath:")]
+ 		protected virtual void WillDisplay (UITableView tableView, UITableViewCell cell, NSIndexPath indexPath)
+ 		{
+ 		}
+ 
+-		[Export ("tableView:willBeginEditingRowAtIndexPath:")]
++		[DynamicExport ("tableView:willBeginEditingRowAtIndexPath:")]
+ 		protected virtual void WillBeginEditing (UITableView tableView, NSIndexPath indexPath)
+ 		{
+ 		}
+ 
+-		[Export ("tableView:didEndEditingRowAtIndexPath:")]
++		[DynamicExport ("tableView:didEndEditingRowAtIndexPath:")]
+ 		protected virtual void DidEndEditing (UITableView tableView, NSIndexPath indexPath)
+ 		{
+ 		}
+ 
+-		[Export ("tableView:viewForHeaderInSection:")]
++		[DynamicExport ("tableView:viewForHeaderInSection:")]
+ 		protected virtual UIView GetViewForHeader (UITableView tableView, int section)
+ 		{
+ 			return null;
+ 		}
+ 
+-		[Export ("tableView:viewForFooterInSection:")]
++		[DynamicExport ("tableView:viewForFooterInSection:")]
+ 		protected virtual UIView GetViewForFooter (UITableView tableView, int section)
+ 		{
+ 			return null;
+ 		}
+ 
+-		//[Export ("tableView:heightForHeaderInSection:")]
+-		//protected virtual float GetHeightForHeader (UITableView tableView, int section)
+-		//{
+-		//	return tableView.SectionHeaderHeight;
+-		//}
++		[DynamicExport ("tableView:heightForHeaderInSection:")]
++		protected virtual float GetHeightForHeader (UITableView tableView, int section)
++		{
++			return tableView.SectionHeaderHeight;
++		}
+ 
+-		//[Export ("tableView:heightForFooterInSection:")]
+-		//protected virtual float GetHeightForFooter (UITableView tableView, int section)
+-		//{
+-		//	return tableView.SectionFooterHeight;
+-		//}
++		[DynamicExport ("tableView:heightForFooterInSection:")]
++		protected virtual float GetHeightForFooter (UITableView tableView, int section)
++		{
++			return tableView.SectionFooterHeight;
++		}
+ 
+-		//[Export ("tableView:heightForRowAtIndexPath:")]
+-		//protected virtual float GetHeightForRow (UITableView tableView, NSIndexPath indexPath)
+-		//{
+-		//	return tableView.RowHeight;
+-		//}
++		[DynamicExport ("tableView:heightForRowAtIndexPath:")]
++		protected virtual float GetHeightForRow (UITableView tableView, NSIndexPath indexPath)
++		{
++			return tableView.RowHeight;
++		}
+ 
+-		[Export ("tableView:willSelectRowAtIndexPath:")]
++		[DynamicExport ("tableView:willSelectRowAtIndexPath:")]
+ 		protected virtual NSIndexPath WillSelectRow (UITableView tableView, NSIndexPath indexPath)
+ 		{
+ 			return indexPath;
+ 		}
+ 
+-		[Export ("tableView:didSelectRowAtIndexPath:")]
++		[DynamicExport ("tableView:didSelectRowAtIndexPath:")]
+ 		protected virtual void RowSelected (UITableView tableView, NSIndexPath indexPath)
+ 		{
+ 		}
+ 
+-		[Export ("tableView:willDeselectRowAtIndexPath:")]
++		[DynamicExport ("tableView:willDeselectRowAtIndexPath:")]
+ 		protected virtual void WillDeselectRow (UITableView tableView, NSIndexPath indexPath)
+ 		{
+ 		}
+ 
+-		[Export ("tableView:didDeselectRowAtIndexPath:")]
++		[DynamicExport ("tableView:didDeselectRowAtIndexPath:")]
+ 		protected virtual void RowDeselected (UITableView tableView, NSIndexPath indexPath)
+ 		{
+ 		}
+ 
+-		[Export ("tableView:titleForDeleteConfirmationButtonForRowAtIndexPath:")]
++		[DynamicExport ("tableView:titleForDeleteConfirmationButtonForRowAtIndexPath:")]
+ 		protected virtual string TitleForDeleteConfirmation (UITableView tableView, NSIndexPath indexPath)
+ 		{
+ 			return "Delete";
+ 		}
+ 
+-		//[Export ("tableView:shouldShowMenuForRowAtIndexPath:")]
+-		//protected virtual bool ShouldShowMenu (UITableView tableView, NSIndexPath rowAtindexPath)
+-		//{
+-		//	return false;
+-		//}
++		[DynamicExport ("tableView:shouldShowMenuForRowAtIndexPath:")]
++		protected virtual bool ShouldShowMenu (UITableView tableView, NSIndexPath rowAtindexPath)
++		{
++			return false;
++		}
+ 
+-		//[Export ("tableView:canPerformAction:forRowAtIndexPath:withSender:")]
+-		//protected virtual bool CanPerformAction (UITableView tableView, Selector action, NSIndexPath indexPath, NSObject sender)
+-		//{
+-		//	return false;
+-		//}
++		[DynamicExport ("tableView:canPerformAction:forRowAtIndexPath:withSender:")]
++		protected virtual bool CanPerformAction (UITableView tableView, Selector action, NSIndexPath indexPath, NSObject sender)
++		{
++			return false;
++		}
+ 
+-		//[Export ("tableView:performAction:forRowAtIndexPath:withSender:")]
+-		//protected void PerformAction (UITableView tableView, Selector action, NSIndexPath indexPath, NSObject sender)
+-		//{
+-		//}
++		[DynamicExport ("tableView:performAction:forRowAtIndexPath:withSender:")]
++		protected void PerformAction (UITableView tableView, Selector action, NSIndexPath indexPath, NSObject sender)
++		{
++		}
+ 		#endregion
+ 		
+ 		#region UISearchDisplayDelegate
+-		[Export ("searchDisplayControllerWillBeginSearch:")]
++		[DynamicExport ("searchDisplayControllerWillBeginSearch:")]
+ 		protected virtual void WillBeginSearch (UISearchDisplayController controller)
+ 		{
+ 		}
+ 
+-		[Export ("searchDisplayControllerDidBeginSearch:")]
++		[DynamicExport ("searchDisplayControllerDidBeginSearch:")]
+ 		protected virtual void DidBeginSearch (UISearchDisplayController controller)
+ 		{
+ 		}
+ 
+-		[Export ("searchDisplayControllerWillEndSearch:")]
++		[DynamicExport ("searchDisplayControllerWillEndSearch:")]
+ 		protected virtual void WillEndSearch (UISearchDisplayController controller)
+ 		{
+ 		}
+ 
+-		[Export ("searchDisplayControllerDidEndSearch:")]
++		[DynamicExport ("searchDisplayControllerDidEndSearch:")]
+ 		protected virtual void DidEndSearch (UISearchDisplayController controller)
+ 		{
+ 		}
+@@ -352,33 +391,33 @@ namespace MonoTouch.SQLite {
+ 			searchLoaded = false;
+ 		}
+ 
+-		[Export ("searchDisplayController:willShowSearchResultsTableView:")]
++		[DynamicExport ("searchDisplayController:willShowSearchResultsTableView:")]
+ 		protected virtual void WillShowSearchResults (UISearchDisplayController controller, UITableView tableView)
+ 		{
+ 		}
+ 
+-		[Export ("searchDisplayController:didShowSearchResultsTableView:")]
++		[DynamicExport ("searchDisplayController:didShowSearchResultsTableView:")]
+ 		protected virtual void DidShowSearchResults (UISearchDisplayController controller, UITableView tableView)
+ 		{
+ 		}
+ 
+-		[Export ("searchDisplayController:willHideSearchResultsTableView:")]
++		[DynamicExport ("searchDisplayController:willHideSearchResultsTableView:")]
+ 		protected virtual void WillHideSearchResults (UISearchDisplayController controller, UITableView tableView)
+ 		{
+ 		}
+ 
+-		[Export ("searchDisplayController:didHideSearchResultsTableView:")]
++		[DynamicExport ("searchDisplayController:didHideSearchResultsTableView:")]
+ 		protected virtual void DidHideSearchResults (UISearchDisplayController controller, UITableView tableView)
+ 		{
+ 		}
+ 
+-		[Export ("searchDisplayController:shouldReloadTableForSearchScope:")]
++		[DynamicExport ("searchDisplayController:shouldReloadTableForSearchScope:")]
+ 		protected virtual bool ShouldReloadForSearchScope (UISearchDisplayController controller, int scope)
+ 		{
+ 			return true;
+ 		}
+ 
+-		[Export ("searchDisplayController:shouldReloadTableForSearchString:")]
++		[DynamicExport ("searchDisplayController:shouldReloadTableForSearchString:")]
+ 		protected virtual bool ShouldReloadForSearchString (UISearchDisplayController controller, string search)
+ 		{
+ 			return true;
+diff --git b/MonoTouch.SQLite/DynamicExportAttribute.cs a/MonoTouch.SQLite/DynamicExportAttribute.cs
+new file mode 100644
+index 0000000..14931df
+--- /dev/null
++++ a/MonoTouch.SQLite/DynamicExportAttribute.cs
+@@ -0,0 +1,79 @@
++//
++// DynamicExportAttribute.cs
++//
++// Author: Jeffrey Stedfast <jeff@xamarin.com>
++//
++// Copyright (c) 2013 Xamarin Inc.
++//
++// Permission is hereby granted, free of charge, to any person obtaining a copy
++// of this software and associated documentation files (the "Software"), to deal
++// in the Software without restriction, including without limitation the rights
++// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++// copies of the Software, and to permit persons to whom the Software is
++// furnished to do so, subject to the following conditions:
++//
++// The above copyright notice and this permission notice shall be included in
++// all copies or substantial portions of the Software.
++//
++// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++// THE SOFTWARE.
++//
++
++using System;
++using System.Reflection;
++
++using MonoTouch.ObjCRuntime;
++using MonoTouch.Foundation;
++
++namespace MonoTouch.SQLite
++{
++	[AttributeUsage (AttributeTargets.Method | AttributeTargets.Property)]
++	internal class DynamicExportAttribute : Attribute
++	{
++		public DynamicExportAttribute (string selector, ArgumentSemantic semantic)
++		{
++			ArgumentSemantic = semantic;
++			Selector = selector;
++		}
++
++		public DynamicExportAttribute (string selector)
++		{
++			Selector = selector;
++		}
++
++		public DynamicExportAttribute ()
++		{
++		}
++
++		public ArgumentSemantic ArgumentSemantic {
++			get; set;
++		}
++
++		public string Selector {
++			get; set;
++		}
++
++		public ExportAttribute Export {
++			get {
++				return new ExportAttribute (Selector, ArgumentSemantic);
++			}
++		}
++
++		public ExportAttribute GetterExport {
++			get { return Export; }
++		}
++
++		public ExportAttribute SetterExport {
++			get {
++				var setter = string.Format ("set{0}{1}:", char.ToUpperInvariant (Selector[0]), Selector.Substring (1));
++
++				return new ExportAttribute (setter, ArgumentSemantic);
++			}
++		}
++	}
++}
+diff --git b/MonoTouch.SQLite/MonoTouch.SQLite.csproj a/MonoTouch.SQLite/MonoTouch.SQLite.csproj
+index 0541a20..c425e25 100644
+--- b/MonoTouch.SQLite/MonoTouch.SQLite.csproj
++++ a/MonoTouch.SQLite/MonoTouch.SQLite.csproj
+@@ -76,5 +76,6 @@
+     <Compile Include="SQLiteSearchExpression.cs" />
+     <Compile Include="SQLiteTableModel.cs" />
+     <Compile Include="SQLiteTableViewController.cs" />
++    <Compile Include="DynamicExportAttribute.cs" />
+   </ItemGroup>
+ </Project>
