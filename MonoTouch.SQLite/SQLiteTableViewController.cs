@@ -29,8 +29,7 @@ using System;
 using MonoTouch.Foundation;
 using MonoTouch.UIKit;
 
-namespace MonoTouch.SQLite
-{
+namespace MonoTouch.SQLite {
 	public abstract class SQLiteTableViewController<T> : AllInOneTableViewController where T : new ()
 	{
 		/// <summary>

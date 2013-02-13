@@ -76,5 +76,9 @@
     <Compile Include="SQLiteSearchExpression.cs" />
     <Compile Include="SQLiteTableModel.cs" />
     <Compile Include="SQLiteTableViewController.cs" />
+    <Compile Include="SQLiteSortOrder.cs" />
+    <Compile Include="SQLiteOrderBy.cs" />
+    <Compile Include="SQLiteOrderByCollection.cs" />
+    <Compile Include="SQLiteSearchAliasAttribute.cs" />
   </ItemGroup>
 </Project>
