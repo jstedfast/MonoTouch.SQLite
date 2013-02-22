@@ -80,5 +80,6 @@
     <Compile Include="SQLiteOrderBy.cs" />
     <Compile Include="SQLiteOrderByCollection.cs" />
     <Compile Include="SQLiteSearchAliasAttribute.cs" />
+    <Compile Include="DynamicExportAttribute.cs" />
   </ItemGroup>
 </Project>
