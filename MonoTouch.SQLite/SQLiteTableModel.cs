@@ -26,8 +26,6 @@
 
 using System;
 using System.Linq;
-using System.Text;
-using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 
@@ -459,7 +457,7 @@ namespace MonoTouch.SQLite {
 				SQLiteWhereExpression where = new SQLiteWhereExpression ();
 				SQLiteAndExpression and = new SQLiteAndExpression ();
 				
-				and.Add (new SQLiteInlineIsExpression (SectionExpression, SectionTitles[section]));
+				and.Add (new SQLiteEqualToExpression (SectionExpression, SectionTitles[section]));
 				if (SearchExpression != null && SearchExpression.Expression != null)
 					and.AddRange (SearchExpression.Expression);
 				

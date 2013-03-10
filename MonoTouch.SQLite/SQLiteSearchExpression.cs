@@ -230,28 +230,6 @@ namespace MonoTouch.SQLite {
 		}
 	}
 	
-	internal class SQLiteInlineIsExpression : SQLiteSearchExpression
-	{
-		public SQLiteInlineIsExpression (string field, string match)
-		{
-			FieldName = field;
-			Match = match;
-		}
-		
-		public string FieldName {
-			get; private set;
-		}
-		
-		public string Match {
-			get; private set;
-		}
-		
-		public override void AppendToQuery (StringBuilder query, List<object> args)
-		{
-			query.AppendFormat ("{0} is \"{1}\"", FieldName, Match);
-		}
-	}
-	
 	public abstract class SQLiteCollectionExpression : SQLiteSearchExpression, ICollection<ISQLiteSearchExpression>
 	{
 		List<ISQLiteSearchExpression> children = new List<ISQLiteSearchExpression> ();
