@@ -102,7 +102,8 @@ namespace MonoTouch.SQLite {
 			
 			OrderBy.Changed += OnSortOrderChanged;
 			Initialize (typeof (T));
-			ReloadData ();
+			sections = -1;
+			count = -1;
 		}
 		
 		public SQLiteTableModel (SQLiteConnection sqlitedb, int pageSize, SQLiteOrderBy orderBy)
