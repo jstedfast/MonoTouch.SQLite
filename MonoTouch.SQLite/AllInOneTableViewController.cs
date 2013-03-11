@@ -175,7 +175,7 @@ namespace MonoTouch.SQLite {
 				HideSearchBar ();
 		}
 		
-		#region UITableVIewDataSource
+		#region UITableViewDataSource
 		[Export ("numberOfSectionsInTableView:")]
 		protected abstract int NumberOfSections (UITableView tableView);
 
