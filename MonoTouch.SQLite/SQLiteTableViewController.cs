@@ -270,19 +270,19 @@ namespace MonoTouch.SQLite {
 				tableView.ReloadRows (new NSIndexPath[] { path }, UITableViewRowAnimation.None);
 		}
 		
-		protected override int NumberOfSections (UITableView tableView)
+		public override int NumberOfSections (UITableView tableView)
 		{
 			return ModelForTableView (tableView).SectionCount;
 		}
-		
-		protected override string TitleForHeader (UITableView tableView, int section)
+
+		public override string TitleForHeader (UITableView tableView, int section)
 		{
 			string[] titles = ModelForTableView (tableView).SectionTitles;
 			
 			return titles != null ? titles[section] : null;
 		}
 		
-		//protected override float GetHeightForHeader (UITableView tableView, int section)
+		//public override float GetHeightForHeader (UITableView tableView, int section)
 		//{
 		//	string[] titles = ModelForTableView (tableView).SectionTitles;
 		//
@@ -292,12 +292,12 @@ namespace MonoTouch.SQLite {
 		//	return base.GetHeightForHeader (tableView, section);
 		//}
 		
-		//protected override float GetHeightForFooter (UITableView tableView, int section)
+		//public override float GetHeightForFooter (UITableView tableView, int section)
 		//{
 		//	return 0;
 		//}
 		
-		protected override int RowsInSection (UITableView tableView, int section)
+		public override int RowsInSection (UITableView tableView, int section)
 		{
 			return ModelForTableView (tableView).GetRowCount (section);
 		}
@@ -336,7 +336,7 @@ namespace MonoTouch.SQLite {
 			return ModelForTableView (tableView).GetItem (indexPath.Section, indexPath.Row);
 		}
 		
-		protected override UITableViewCell GetCell (UITableView tableView, NSIndexPath indexPath)
+		public override UITableViewCell GetCell (UITableView tableView, NSIndexPath indexPath)
 		{
 			return GetCell (tableView, indexPath, GetItem (tableView, indexPath));
 		}

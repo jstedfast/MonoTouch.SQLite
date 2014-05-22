@@ -60,7 +60,7 @@ namespace MonoTouch.SQLite {
 					if (export == null)
 						continue;
 
-					//Console.WriteLine ("Registering method {0}.{1}() with selector {2}", type.FullName, method.Name, export.Selector);
+					Console.WriteLine ("Registering method {0}.{1}() with selector {2}", type.FullName, method.Name, export.Selector);
 
 					Runtime.ConnectMethod (type, method, export.Export);
 				}
@@ -69,7 +69,7 @@ namespace MonoTouch.SQLite {
 			}
 		}
 		
-		public AllInOneTableViewController (UITableViewStyle style, bool canSearch) : base (style)
+		protected AllInOneTableViewController (UITableViewStyle style, bool canSearch) : base (style)
 		{
 			ClearsSelectionOnViewWillAppear = false;
 			CanSearch = canSearch;
@@ -77,11 +77,11 @@ namespace MonoTouch.SQLite {
 			RegisterType (GetType ());
 		}
 
-		public AllInOneTableViewController (UITableViewStyle style) : this (style, false)
+		protected AllInOneTableViewController (UITableViewStyle style) : this (style, false)
 		{
 		}
 
-		public AllInOneTableViewController () : this (UITableViewStyle.Grouped)
+		protected AllInOneTableViewController () : this (UITableViewStyle.Grouped)
 		{
 		}
 		
@@ -174,183 +174,6 @@ namespace MonoTouch.SQLite {
 			if (AutoHideSearch)
 				HideSearchBar ();
 		}
-		
-		#region UITableViewDataSource
-		[Export ("numberOfSectionsInTableView:")]
-		protected abstract int NumberOfSections (UITableView tableView);
-
-		[Export ("tableView:numberOfRowsInSection:")]
-		protected abstract int RowsInSection (UITableView tableView, int section);
-
-		[Export ("tableView:cellForRowAtIndexPath:")]
-		protected abstract UITableViewCell GetCell (UITableView tableView, NSIndexPath indexPath);
-
-		[DynamicExport ("tableView:titleForHeaderInSection:")]
-		protected virtual string TitleForHeader (UITableView tableView, int section)
-		{
-			return null;
-		}
-
-		[DynamicExport ("tableView:titleForFooterInSection:")]
-		protected virtual string TitleForFooter (UITableView tableView, int section)
-		{
-			return null;
-		}
-
-		[DynamicExport ("tableView:canEditRowAtIndexPath:")]
-		protected virtual bool CanEditRow (UITableView tableView, NSIndexPath indexPath)
-		{
-			return false;
-		}
-
-		[DynamicExport ("tableView:canMoveRowAtIndexPath:")]
-		protected virtual bool CanMoveRow (UITableView tableView, NSIndexPath idnexPath)
-		{
-			return false;
-		}
-
-		[DynamicExport ("sectionIndexTitlesForTableView:")]
-		protected virtual string [] SectionIndexTitles (UITableView tableView)
-		{
-			return new string [0];
-		}
-		
-		[DynamicExport ("tableView:sectionForSectionIndexTitle:atIndex:")]
-		protected virtual int SectionFor (UITableView tableView, string title, int atIndex)
-		{
-			return 0;
-		}
-
-		[DynamicExport ("tableView:commitEditingStyle:forRowAtIndexPath:")]
-		protected virtual void CommitEditingStyle (UITableView tableView, UITableViewCellEditingStyle editingStyle, NSIndexPath indexPath)
-		{
-		}
-
-		[DynamicExport ("tableView:moveRowAtIndexPath:toIndexPath:")]
-		protected virtual void MoveRow (UITableView tableView, NSIndexPath sourceIndexPath, NSIndexPath destinationIndexPath)
-		{
-		}
-		#endregion
-		
-		#region UITableViewDelegate
-		[DynamicExport ("tableView:accessoryButtonTappedForRowWithIndexPath:")]
-		protected virtual void AccessoryButtonTapped (UITableView tableView, NSIndexPath indexPath)
-		{
-		}
-
-		[DynamicExport ("tableView:targetIndexPathForMoveFromRowAtIndexPath:toProposedIndexPath:")]
-		protected virtual NSIndexPath CustomizeMoveTarget (UITableView tableView, NSIndexPath sourceIndexPath, NSIndexPath proposedIndexPath)
-		{
-			return proposedIndexPath;
-		}
-
-		[DynamicExport ("tableView:shouldIndentWhileEditingRowAtIndexPath:")]
-		protected virtual bool ShouldIndentWhileEditing (UITableView tableView, NSIndexPath indexPath)
-		{
-			return false;
-		}
-
-		[DynamicExport ("tableView:indentationLevelForRowAtIndexPath:")]
-		protected virtual int IndentationLevel (UITableView tableView, NSIndexPath indexPath)
-		{
-			return 0;
-		}
-
-		[DynamicExport ("tableView:editingStyleForRowAtIndexPath:")]
-		protected virtual UITableViewCellEditingStyle EditingStyleForRow (UITableView tableView, NSIndexPath indexPath)
-		{
-			return UITableViewCellEditingStyle.None;
-		}
-
-		[DynamicExport ("tableView:willDisplayCell:forRowAtIndexPath:")]
-		protected virtual void WillDisplay (UITableView tableView, UITableViewCell cell, NSIndexPath indexPath)
-		{
-		}
-
-		[DynamicExport ("tableView:willBeginEditingRowAtIndexPath:")]
-		protected virtual void WillBeginEditing (UITableView tableView, NSIndexPath indexPath)
-		{
-		}
-
-		[DynamicExport ("tableView:didEndEditingRowAtIndexPath:")]
-		protected virtual void DidEndEditing (UITableView tableView, NSIndexPath indexPath)
-		{
-		}
-
-		[DynamicExport ("tableView:viewForHeaderInSection:")]
-		protected virtual UIView GetViewForHeader (UITableView tableView, int section)
-		{
-			return null;
-		}
-
-		[DynamicExport ("tableView:viewForFooterInSection:")]
-		protected virtual UIView GetViewForFooter (UITableView tableView, int section)
-		{
-			return null;
-		}
-
-		[DynamicExport ("tableView:heightForHeaderInSection:")]
-		protected virtual float GetHeightForHeader (UITableView tableView, int section)
-		{
-			return tableView.SectionHeaderHeight;
-		}
-
-		[DynamicExport ("tableView:heightForFooterInSection:")]
-		protected virtual float GetHeightForFooter (UITableView tableView, int section)
-		{
-			return tableView.SectionFooterHeight;
-		}
-
-		[DynamicExport ("tableView:heightForRowAtIndexPath:")]
-		protected virtual float GetHeightForRow (UITableView tableView, NSIndexPath indexPath)
-		{
-			return tableView.RowHeight;
-		}
-
-		[DynamicExport ("tableView:willSelectRowAtIndexPath:")]
-		protected virtual NSIndexPath WillSelectRow (UITableView tableView, NSIndexPath indexPath)
-		{
-			return indexPath;
-		}
-
-		[DynamicExport ("tableView:didSelectRowAtIndexPath:")]
-		protected virtual void RowSelected (UITableView tableView, NSIndexPath indexPath)
-		{
-		}
-
-		[DynamicExport ("tableView:willDeselectRowAtIndexPath:")]
-		protected virtual void WillDeselectRow (UITableView tableView, NSIndexPath indexPath)
-		{
-		}
-
-		[DynamicExport ("tableView:didDeselectRowAtIndexPath:")]
-		protected virtual void RowDeselected (UITableView tableView, NSIndexPath indexPath)
-		{
-		}
-
-		[DynamicExport ("tableView:titleForDeleteConfirmationButtonForRowAtIndexPath:")]
-		protected virtual string TitleForDeleteConfirmation (UITableView tableView, NSIndexPath indexPath)
-		{
-			return "Delete";
-		}
-
-		[DynamicExport ("tableView:shouldShowMenuForRowAtIndexPath:")]
-		protected virtual bool ShouldShowMenu (UITableView tableView, NSIndexPath rowAtindexPath)
-		{
-			return false;
-		}
-
-		[DynamicExport ("tableView:canPerformAction:forRowAtIndexPath:withSender:")]
-		protected virtual bool CanPerformAction (UITableView tableView, Selector action, NSIndexPath indexPath, NSObject sender)
-		{
-			return false;
-		}
-
-		[DynamicExport ("tableView:performAction:forRowAtIndexPath:withSender:")]
-		protected void PerformAction (UITableView tableView, Selector action, NSIndexPath indexPath, NSObject sender)
-		{
-		}
-		#endregion
 		
 		#region UISearchDisplayDelegate
 		[DynamicExport ("searchDisplayControllerWillBeginSearch:")]

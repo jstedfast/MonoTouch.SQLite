@@ -33,7 +33,7 @@ using MonoTouch.Foundation;
 namespace MonoTouch.SQLite
 {
 	[AttributeUsage (AttributeTargets.Method | AttributeTargets.Property)]
-	internal class DynamicExportAttribute : Attribute
+	internal sealed class DynamicExportAttribute : Attribute
 	{
 		public DynamicExportAttribute (string selector, ArgumentSemantic semantic)
 		{
